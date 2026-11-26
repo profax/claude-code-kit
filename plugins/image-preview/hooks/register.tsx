@@ -182,6 +182,17 @@ let draftIds: number[] = []
 let hasShown = false
 let poll: { cancel: () => void } | undefined
 
+// What the debug log has been told already: a failure that stays would be written at every
+// poll. A hundred distinct ones are plenty to go on.
+const logged = new Set<string>()
+
+/** Puts `text` in the debug log, the first time only. */
+function logOnce ($: Engine, text: string) {
+  if (logged.has(text) || logged.size >= 100) return
+  logged.add(text)
+  $.ui.log(text, { to: 'debug' })
+}
+
 /** After /clear the image ids start from 1 again: what the session before had read is forgotten. */
 async function follow ($: Engine) {
   const id = await $.session.id()
@@ -762,7 +773,8 @@ export const register: Register = (on) => {
     if (e.isInteractive) {
       // A poll that fails as the module unloads is left to the next one.
       poll = $.clock.every(POLL_MS, () => {
-        void $.prompt.read().then(box => track($, box.text)).then(() => settle($)).catch(() => undefined)
+        void $.prompt.read().then(box => track($, box.text)).then(() => settle($))
+          .catch(error => logOnce($, `polling the prompt box failed: ${error instanceof Error ? error.message : String(error)}`))
       })
     }
     return result

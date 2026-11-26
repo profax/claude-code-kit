@@ -75,6 +75,17 @@ let screenRows = 40
 // known.
 let isBatching = true
 
+// What the debug log has been told already: a failure that stays would be written at every
+// drawing of a reply. A hundred distinct ones are plenty to go on.
+const logged = new Set<string>()
+
+/** Puts `text` in the debug log, the first time only. */
+function logOnce ($: Engine, text: string) {
+  if (logged.has(text) || logged.size >= 100) return
+  logged.add(text)
+  $.ui.log(text, { to: 'debug' })
+}
+
 function forget () {
   seen.clear()
   linked.clear()
@@ -517,7 +528,11 @@ export const register: Register = (on) => {
     if (e.surface !== 'terminal' || e.viewport?.isFullscreen !== true) return next(e)
     if (note(e)) follow($, e.requestId)
     if (e.component !== 'AssistantMessage' || e.props.isSummary) return next(e)
-    const plan = await planOf($, e.props.text).catch(() => null)
+    // A reply the mod can't read is the engine's to draw.
+    const plan = await planOf($, e.props.text).catch(error => {
+      logOnce($, `reading a reply failed: ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     if (!plan) {
       linked.delete(e.requestId)
       return next(e)
