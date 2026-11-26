@@ -20,6 +20,7 @@ mod spend;
 
 use std::fs;
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 use jiff::{Timestamp, Zoned};
 use serde_json::{Value, json};
@@ -41,7 +42,66 @@ fn store_dir() -> Option<PathBuf> {
     Some(base?.join("quotaline"))
 }
 
-fn main() {
+/// What the command line asks for.
+#[derive(Debug, PartialEq, Eq)]
+enum Mode {
+    /// Print the status line: Claude Code runs the program this way.
+    Line,
+    Version,
+    Help,
+}
+
+const HELP: &str = "\
+Shows Claude Code's context fill, subscription limits and the time until they
+reset in its status line. Claude Code runs quotaline and passes the session's
+data on stdin.
+
+Usage:
+  quotaline                 Print the status line (Claude Code runs this)
+  quotaline --version, -V   Print the version
+  quotaline --help, -h      Print this help
+
+Settings: ~/.claude/settings.json, or settings.json in $CLAUDE_CONFIG_DIR
+when that's set.";
+
+/// The mode the arguments ask for, or what is wrong with them.
+fn mode(args: &[&str]) -> Result<Mode, String> {
+    match args {
+        [] => Ok(Mode::Line),
+        ["--version" | "-V"] => Ok(Mode::Version),
+        ["--help" | "-h"] => Ok(Mode::Help),
+        _ => Err(
+            match args
+                .iter()
+                .find(|arg| !["--version", "-V", "--help", "-h"].contains(arg))
+            {
+                Some(arg) => format!("unknown argument: {arg}"),
+                None => format!("these arguments don't go together: {}", args.join(" ")),
+            },
+        ),
+    }
+}
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args_os()
+        .skip(1)
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    match mode(&args) {
+        Ok(Mode::Line) => line(),
+        Ok(Mode::Version) => println!("quotaline {}", env!("CARGO_PKG_VERSION")),
+        Ok(Mode::Help) => println!("quotaline {}\n\n{HELP}", env!("CARGO_PKG_VERSION")),
+        Err(problem) => {
+            eprintln!("quotaline: {problem}\nRun 'quotaline --help' to see the options.");
+            return ExitCode::from(2);
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// Reads the session's data from stdin and prints the line.
+fn line() {
     let event: Value = serde_json::from_reader(std::io::stdin().lock()).unwrap_or_default();
     let dir = store_dir().filter(|dir| fs::create_dir_all(dir).is_ok());
     // Sessions call the program at the same moment: without the lock one
@@ -100,5 +160,25 @@ fn main() {
         println!("limits: no data");
     } else {
         println!("{}", parts.join(&render::dim(" · ")));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn arguments_ask_for_one_mode() {
+        assert_eq!(mode(&[]), Ok(Mode::Line));
+        assert_eq!(mode(&["-V"]), Ok(Mode::Version));
+        assert_eq!(mode(&["--help"]), Ok(Mode::Help));
+        assert_eq!(
+            mode(&["--verbose"]),
+            Err("unknown argument: --verbose".into())
+        );
+        assert_eq!(
+            mode(&["--help", "--version"]),
+            Err("these arguments don't go together: --help --version".into())
+        );
     }
 }
