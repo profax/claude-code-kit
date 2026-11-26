@@ -623,6 +623,27 @@ fn window_that_has_reset_shows_zero_for_one_length_of_it() {
 }
 
 #[test]
+fn failed_store_write_leaves_no_file_behind() {
+    // a directory where the store goes: the new store is written, but
+    // can't take its place
+    let home = Home::new();
+    fs::create_dir_all(home.store().join("in the way")).expect("a directory in the way");
+    assert_eq!(home.line(&paid_session("a", 1.238)), "$1.24 · Opus 5.5");
+    let left: Vec<String> = fs::read_dir(home.store().parent().expect("store directory"))
+        .expect("store directory")
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .filter(|name| name.starts_with("limits.json."))
+        .collect();
+    assert_eq!(left, Vec::<String>::new());
+}
+
+#[test]
 fn sessions_calling_at_once_lose_nothing() {
     let home = Home::new();
     std::thread::scope(|scope| {
