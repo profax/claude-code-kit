@@ -463,6 +463,34 @@ fn subscription_session_shows_no_money() {
 }
 
 #[test]
+fn store_of_any_shape_still_gives_a_line() {
+    // the store is a file anyone can edit: its members can be of any type
+    let stores = [
+        json!({"sessions": 5, "spend": "x", "five_hour": [], "seven_day": 7,
+               "scoped": {"a": 1}, "asked_at": "x"}),
+        json!({"sessions": [1], "spend": {"sessions": "x", "total": "x", "day": 3},
+               "scoped": [1, "x", {"name": 5}], "five_hour": {"used_percentage": "x"},
+               "asked_at": 1.5}),
+        json!({"sessions": {"a": 5, "b": [1]}, "spend": {"sessions": [], "day": []},
+               "seven_day": {"used_percentage": 50, "resets_at": "x"}}),
+        json!({"sessions": "x", "spend": 5}),
+        json!({"sessions": null, "spend": [1]}),
+    ];
+    let reset = Timestamp::now().as_second() + 3 * 86_400;
+    for kept in stores {
+        let home = Home::new();
+        home.keep(&kept);
+        let line = home.line(&event("a", 1000, 5.0, reset));
+        assert_eq!(week(&line), "5%", "{kept} {line}");
+        let home = Home::new();
+        home.keep(&kept);
+        let line = home.line(&paid_session("new", 1.238));
+        assert!(line.starts_with("$1.24 · "), "{kept} {line}");
+        assert!(line.ends_with("Opus 5.5"), "{kept} {line}");
+    }
+}
+
+#[test]
 fn sessions_calling_at_once_lose_nothing() {
     let home = Home::new();
     std::thread::scope(|scope| {
