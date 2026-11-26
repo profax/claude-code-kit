@@ -2,7 +2,8 @@
 
 Paths in Claude's replies become links. Hover one for a card with the file's
 size, age and first lines; click to show it in the file manager, Alt-click to
-open it.
+open it. Programs and scripts are shown in their folder instead, and files
+that hold secrets, such as `.env`, show no lines.
 
 ```
 /plugin install quick-peek --marketplace profax/claude-code-kit

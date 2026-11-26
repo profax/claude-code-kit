@@ -176,8 +176,12 @@ when it is installed.
 A path in a reply, such as `src/main.rs` or `docs/plan.md:42`, becomes a link
 if the file exists. Hover it for a card with the name, the size and how long
 ago it changed. For code and text the card also shows the first lines, or the
-lines around the one the path names. Click to show the file in Finder,
-Explorer or your Linux file manager. Alt-click opens it.
+lines around the one the path names. Files that usually hold secrets, such
+as `.env` and `.npmrc`, show no lines, while samples such as `.env.example`
+do. Click to show the file in Finder, Explorer or your Linux file manager.
+Alt-click opens it in its default program. A program or a script, such as an
+`.exe`, a `.command` or a file with no extension, isn't run: Alt-click shows
+it in its folder.
 
 ## quotaline
 
@@ -225,9 +229,10 @@ subscription login, the line shows that subscription's limits as well.
   when you click. On Windows and under WSL it also keeps the window's helper,
   `image-preview-popup-1.dll`, in the Windows temp folder.
 - `quick-peek` reads the size, the date and the lines its card shows of the
-  files a reply names. On a click it runs the file manager. On an Alt-click it
-  opens the file with its default program, which runs the file if it is a
-  program.
+  files a reply names, except the lines of files that hold secrets. On a
+  click it runs the file manager. On an Alt-click it opens the file with its
+  default program; a program or a script it shows in the file manager
+  instead.
 
 The plugins send nothing over the network. When a plugin can't do part of
 its work (quick-peek can't read a reply, image-preview can't read the prompt

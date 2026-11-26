@@ -1,5 +1,8 @@
-// A code or text file is shown by its lines, anything else by a card without them. It is told by
-// its name; the engine colors the lines (Code, by the file's path).
+// A code or text file is shown by its lines, anything else by a card without them, and so is a file
+// that keeps secrets. What a file is, is told by its name; the engine colors the lines (Code, by
+// the file's path).
+import type { FsStat } from 'claude-code'
+
 import { nameOf } from './paths'
 
 /** What the card shows of a file: its lines from `first` on, as written. */
@@ -18,12 +21,41 @@ const NAMES = new Set(['dockerfile', 'containerfile', 'makefile', 'gnumakefile',
   '.profile', '.gitignore', '.dockerignore', '.npmignore', '.prettierignore', '.gitattributes', '.editorconfig', '.npmrc',
   '.nvmrc', 'license', 'codeowners', 'procfile'])
 
-/** Whether the file is code or text, by its name. An SVG is a picture, not text. */
+// Files that keep keys and passwords by convention, and the samples of them that keep none. A card
+// is seen by whoever sees the screen, and a recording keeps it.
+const SECRETS = new Set(['.npmrc', '.pypirc', '.netrc', '.git-credentials', '.pgpass'])
+const SAMPLES = /\.(example|sample|template|dist)$/
+
+// What the system runs, rather than opens in a program, when asked to open it: an Alt-click on
+// such a file shows it in its folder.
+const RUNNABLE = new Set(('app command tool terminal workflow action scpt scptd applescript osax prefpane pkg mpkg dmg ' +
+  'sh bash zsh fish csh ksh tcsh py pyw pyz pl rb php js jse vbs vbe wsf wsh ps1 psm1 bat cmd com exe msi msp msix ' +
+  'appx appxbundle scr cpl hta jar lnk url reg pif inf application desktop appimage run bin deb rpm snap flatpakref').split(' '))
+
+/** Whether the file keeps secrets by its name. */
+function isSecret (name: string) {
+  return SECRETS.has(name) || ((name === '.env' || name.startsWith('.env.')) && !SAMPLES.test(name))
+}
+
+/** Whether the file is code or text, by its name. An SVG is a picture, not text; a secret is neither. */
 export function isText (path: string) {
   const name = nameOf(path).toLowerCase()
+  if (isSecret(name)) return false
   if (NAMES.has(name) || name.startsWith('.env') || name.startsWith('dockerfile.') || name.endsWith('.dockerfile')) return true
   const dot = name.lastIndexOf('.')
   return dot > 0 && EXTENSIONS.has(name.slice(dot + 1))
+}
+
+/**
+ * Whether opening the path may run it: a program or a script by its name (a macOS app is a
+ * folder), or a file with no extension that is not known text (a program built on macOS or Linux
+ * has none, and macOS runs it in the Terminal).
+ */
+export function isRunnable (path: string, kind: FsStat['kind'] | undefined) {
+  const name = nameOf(path).toLowerCase()
+  const dot = name.lastIndexOf('.')
+  if (dot <= 0) return kind !== 'dir' && !isText(path) && !isSecret(name)
+  return RUNNABLE.has(name.slice(dot + 1))
 }
 
 /**

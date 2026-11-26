@@ -116,10 +116,10 @@ test('the card of a .env file names it and shows none of its lines', async ($, o
   expect(await ui.find({ text: /sk-live/ })).toBeUndefined()
 })
 
-/** Clicks the first link of `ui`, with Alt or without. */
-async function click (ui: Awaited<ReturnType<typeof reply>>, alt: boolean) {
-  await ui.pointer({ type: 'down', x: 2, y: 0, button: 'left', alt, in: 'path:0:0' })
-  await ui.pointer({ type: 'up', x: 2, y: 0, button: 'left', alt, in: 'path:0:0' })
+/** Clicks the first link of `ui` with Alt held. */
+async function altClick (ui: Awaited<ReturnType<typeof reply>>) {
+  await ui.pointer({ type: 'down', x: 2, y: 0, button: 'left', alt: true, in: 'path:0:0' })
+  await ui.pointer({ type: 'up', x: 2, y: 0, button: 'left', alt: true, in: 'path:0:0' })
 }
 
 test('an alt-click on a program or a script shows it in its folder instead of running it', async ($, on) => {
@@ -127,7 +127,7 @@ test('an alt-click on a program or a script shows it in its folder instead of ru
   await startSession($)
   for (const path of [SCRIPT, BINARY]) {
     const ui = await reply($, `Built: ${path}`)
-    await click(ui, true)
+    await altClick(ui)
     await w.clock.settle()
     expect(w.runs).toContainEqual(['open', '-R', path])
     expect(w.runs).not.toContainEqual(['open', path])
@@ -139,7 +139,7 @@ test('on Windows an alt-click on an .exe selects it in Explorer', async ($, on) 
   const w = world(on, { platform: 'windows' })
   await startSession($, WIN_ROOT)
   const ui = await reply($, `Saved: \`${WIN_SETUP}\``)
-  await click(ui, true)
+  await altClick(ui)
   await w.clock.settle()
   expect(w.runs).toEqual([['explorer.exe', '/select,', WIN_SETUP]])
 })
@@ -148,10 +148,19 @@ test('on Linux an alt-click on a script selects it in the file manager', async (
   const w = world(on)
   await startSession($)
   const ui = await reply($, `Built: ${SCRIPT}`)
-  await click(ui, true)
+  await altClick(ui)
   await w.clock.settle()
   expect(w.runs.find(argv => argv[0] === 'dbus-send')).toContain(`array:string:file://${SCRIPT}`)
   expect(w.runs.filter(argv => argv[0] === 'xdg-open')).toEqual([])
+})
+
+test('an alt-click on a folder opens it', async ($, on) => {
+  const w = world(on)
+  await startSession($)
+  const ui = await reply($, `Saved in ${FOLDER}`)
+  await altClick(ui)
+  await w.clock.settle()
+  expect(w.runs).toEqual([['xdg-open', FOLDER]])
 })
 
 test('a preview shows the first lines, or those around the one named, the shared indent cut', () => {

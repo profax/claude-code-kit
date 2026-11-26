@@ -12,7 +12,9 @@ First public release.
   terminals show it in colored cells, or, on Windows and under WSL, in a
   window by the pointer.
 - **quick-peek**: paths in replies become links with a card (size, age, first
-  lines); a click shows the file in the file manager.
+  lines; none for files that hold secrets, such as `.env`); a click shows the
+  file in the file manager, an Alt-click opens it, and a program or a script
+  is shown in its folder rather than run.
 - **quotaline**: a status line with the context fill, the five-hour and weekly
   limits and the time until each resets, a model's weekly limit, and the model
   in use; `quotaline --setup` adds it to the Claude Code settings.

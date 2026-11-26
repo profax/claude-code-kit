@@ -1,10 +1,10 @@
 // The paths in a reply become links: under the pointer the terminal shows a card by the path (name,
 // size, age, and for code its first lines), a click shows the path in the file manager, and with
-// Alt opens it. Terminal only. Based on quick-peek from better-claude (MIT, ../LICENSE), without
+// Alt opens it, unless it is a program or a script. Terminal only. Based on quick-peek from better-claude (MIT, ../LICENSE), without
 // its windows.
 import type { Elements, EngineInterface, EventOf, FsStat, Register, RenderElement } from 'claude-code'
 
-import { excerptOf, isText } from './code'
+import { excerptOf, isRunnable, isText } from './code'
 import type { Excerpt } from './code'
 import { blocks, inline, items, markerOf, widthOf, wrap } from './markdown'
 import type { Item, Row, Run } from './markdown'
@@ -464,7 +464,9 @@ function swap (drawn: RenderElement, mine: RenderElement): RenderElement {
  * macOS, and on Linux the manager that answers FileManager1 (Nautilus) or, where none does, the
  * path's folder opened.
  */
-async function reveal ($: Engine, path: string, isOpening: boolean) {
+async function reveal ($: Engine, path: string, isAlt: boolean) {
+  // A program or a script is shown, not run: a reply may name one Claude has not been asked for.
+  const isOpening = isAlt && !isRunnable(path, (await statOf($, path))?.kind)
   const run = (argv: string[]) => $.process.run(argv).catch(() => undefined)
   // The system is told by `OS`, the distro's name and `uname`: Claude Code 2.1.325 has no
   // `$.session.info()`, and a module that calls it does not load there at all.
