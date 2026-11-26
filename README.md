@@ -56,9 +56,9 @@ in your tmux, try adding `set -g mouse on` to `~/.tmux.conf` and running
    | Linux, WSL | Arm | `quotaline-<version>-aarch64-unknown-linux-musl.tar.gz` |
    | Windows | x86-64 (Intel or AMD) | `quotaline-<version>-x86_64-pc-windows-msvc.zip` |
 
-   On a Mac, the Apple menu > About This Mac names the chip: Apple M1 or later
-   is Apple silicon. On Linux and WSL, `uname -m` prints `x86_64` or
-   `aarch64`.
+   On a Mac, Apple menu > About This Mac shows either a chip (Apple silicon,
+   such as Apple M1) or a processor (Intel). On Linux and WSL, `uname -m`
+   prints `x86_64` or `aarch64`.
 
 2. Unpack it and put the program in a folder for programs.
 
@@ -73,13 +73,13 @@ in your tmux, try adding `set -g mouse on` to `~/.tmux.conf` and running
 
    If the browser has unpacked the archive already, skip the `tar` line.
    Under WSL, a browser in Windows saves to the Windows Downloads folder, so
-   start with `cd /mnt/c/Users/you/Downloads`, with your Windows user name in
-   place of `you`.
+   start with `cd /mnt/c/Users/you/Downloads` instead, with your Windows user
+   name in place of `you`.
 
-   On Windows, right-click the archive in File Explorer, choose Extract All,
-   and move `quotaline.exe` from the unpacked folder to a folder whose path
-   has no spaces, such as `C:\Users\you\bin` (if your user name has a space,
-   use `C:\tools`).
+   On Windows, right-click the archive in File Explorer and choose Extract
+   All. Make a folder for programs whose path has no spaces, such as
+   `C:\Users\you\bin` (if your user name has a space, `C:\tools`), and move
+   `quotaline.exe` from the unpacked folder there.
 
 3. Run it by its full path with `--setup`:
 
