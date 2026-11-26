@@ -43,7 +43,7 @@ pub fn scoped(kept: &Value, now: i64) -> Vec<String> {
         .filter_map(|limit| {
             let name = limit["name"].as_str()?.to_lowercase();
             let own = limit["resets_at"].as_i64();
-            let timed = own.zip(week).is_some_and(|(o, w)| (o - w).abs() > 60);
+            let timed = own.zip(week).is_some_and(|(o, w)| o.abs_diff(w) > 60);
             let mut limit = limit.clone();
             limit["resets_at"] = json!(own.or(week));
             window(&name, &limit, now, timed)

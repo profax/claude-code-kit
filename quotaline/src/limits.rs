@@ -142,7 +142,7 @@ pub fn update(kept: &mut Value, event: &Value, now: i64) -> bool {
     // the others have brought
     let due = kept["asked_at"]
         .as_i64()
-        .is_none_or(|at| now - at >= ASK_EVERY);
+        .is_none_or(|at| now.saturating_sub(at) >= ASK_EVERY);
     if (!has_limits || seen != Seen::Same)
         && due
         && let Some(token) = login::token(now)
