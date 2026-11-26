@@ -11,6 +11,7 @@
 //! - `scoped`: weekly limits of single models, from the subscription server;
 //! - `sessions`: the last reading of each session, to tell fresh from stale;
 //! - `asked_at`: when a session last looked for the login to ask the server;
+//! - `answered_at`: when the server last answered with the model limits;
 //! - `spend`: the day's total for sessions billed by API key.
 
 mod limits;

@@ -26,6 +26,11 @@ pub const WINDOWS: [(&str, &str); 2] = [("five_hour", "5h"), ("seven_day", "week
 /// barely moves in five minutes.
 const ASK_EVERY: i64 = 300;
 
+/// Seconds the server's last answer stands while every request after it
+/// fails. Model limits come from the server alone: past this they could no
+/// longer pass for current.
+const ANSWER_LASTS: i64 = 3600;
+
 /// A window from the server's answer in the shape of a Claude Code window: a
 /// percentage and epoch seconds.
 fn window(used: &Value, reset: &Value) -> Option<Value> {
@@ -39,8 +44,9 @@ fn window(used: &Value, reset: &Value) -> Option<Value> {
 
 /// Puts the server's answer into the store: it is fresher than any session's
 /// reading. The list of model limits is replaced as a whole: a limit missing
-/// from the answer does not apply to this subscription.
-fn absorb(kept: &mut Value, answer: &Value) {
+/// from the answer does not apply to this subscription. Returns whether the
+/// answer had that list.
+fn absorb(kept: &mut Value, answer: &Value) -> bool {
     for (name, _) in WINDOWS {
         if let Some(fresh) = window(&answer[name]["utilization"], &answer[name]["resets_at"]) {
             kept[name] = fresh;
@@ -57,6 +63,23 @@ fn absorb(kept: &mut Value, answer: &Value) {
             })
             .collect();
         kept["scoped"] = json!(scoped);
+        return true;
+    }
+    false
+}
+
+/// Asks the server with `token` and puts its answer into the store. When it
+/// has failed for longer than `ANSWER_LASTS` since its last good answer, the
+/// model limits leave the store until it answers again.
+fn ask(kept: &mut Value, token: &str, now: i64) {
+    if login::ask(token).is_some_and(|answer| absorb(kept, &answer)) {
+        kept["answered_at"] = json!(now);
+    } else if kept["answered_at"]
+        .as_i64()
+        .is_none_or(|at| now.saturating_sub(at) > ANSWER_LASTS)
+        && let Some(store) = kept.as_object_mut()
+    {
+        store.remove("scoped");
     }
 }
 
@@ -146,8 +169,8 @@ pub fn update(kept: &mut Value, event: &Value, now: i64, may_ask: bool) -> bool 
         .is_none_or(|at| now.saturating_sub(at) >= ASK_EVERY);
     if may_ask && (!has_limits || seen != Seen::Same) && due {
         kept["asked_at"] = json!(now);
-        if let Some(answer) = login::token(now).and_then(|token| login::ask(&token)) {
-            absorb(kept, &answer);
+        if let Some(token) = login::token(now) {
+            ask(kept, &token, now);
         }
     }
     has_limits
