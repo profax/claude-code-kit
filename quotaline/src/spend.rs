@@ -18,7 +18,7 @@ fn session(event: &Value) -> Option<String> {
 /// day, and a cost lower than the last one means Claude Code started counting
 /// the session from zero.
 pub fn tally(kept: &mut Value, event: &Value, day: &str, now: i64) {
-    let spend = &mut kept["spend"];
+    let spend = crate::object(&mut kept["spend"]);
     if spend["day"] != day {
         spend["day"] = json!(day);
         spend["total"] = json!(0.0);
@@ -37,7 +37,7 @@ pub fn tally(kept: &mut Value, event: &Value, day: &str, now: i64) {
     let added = if cost < last { cost } else { cost - last };
     if added > 0.0 {
         spend["total"] = json!(spend["total"].as_f64().unwrap_or(0.0) + added);
-        spend["sessions"][id] = json!({"cost": cost, "seen": now});
+        crate::object(&mut spend["sessions"])[id] = json!({"cost": cost, "seen": now});
     }
 }
 

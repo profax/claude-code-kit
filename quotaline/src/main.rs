@@ -43,6 +43,16 @@ fn store_dir() -> Option<PathBuf> {
     Some(base?.join("quotaline"))
 }
 
+/// `value`, made an object if it is anything else, ready for writing into.
+/// The store is a file anyone can edit, and writing a key into a member of
+/// another type panics.
+fn object(value: &mut Value) -> &mut Value {
+    if !value.is_object() {
+        *value = json!({});
+    }
+    value
+}
+
 /// What the command line asks for.
 #[derive(Debug, PartialEq, Eq)]
 enum Mode {

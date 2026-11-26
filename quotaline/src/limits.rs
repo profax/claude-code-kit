@@ -114,7 +114,7 @@ fn remember(kept: &mut Value, event: &Value, now: i64) -> Seen {
         });
     }
     if seen != Seen::Same {
-        kept["sessions"][id] = mark;
+        crate::object(&mut kept["sessions"])[id] = mark;
     }
     seen
 }
