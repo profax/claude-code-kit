@@ -1,0 +1,10 @@
+[package]
+name = "checks"
+version = "0.0.0"
+description = "Checks of the repository itself; holds nothing but tests"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
