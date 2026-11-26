@@ -12,7 +12,8 @@ to show a file in the file manager, with paths taken from the conversation.
 These count as vulnerabilities:
 
 - the token, or anything derived from it, written to a file or a log, or sent
-  anywhere other than `api.anthropic.com`;
+  anywhere other than `api.anthropic.com` and the test server on this machine
+  that `QUOTALINE_API` names (`http://127.0.0.1:<port>`, nothing else);
 - `quotaline --setup` changing anything in the settings file other than
   `statusLine`, or losing the file's contents;
 - text in a prompt, a reply or a file name that makes a plugin run a program
