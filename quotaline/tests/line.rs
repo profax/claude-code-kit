@@ -39,18 +39,24 @@ impl Home {
     /// and a stub server at `api`.
     fn signed_in(api: &str, expires: i64) -> Self {
         let mut home = Self::new();
+        home.sign_in(expires);
+        api.clone_into(&mut home.1);
+        home
+    }
+
+    /// Puts a subscription login that expires in `expires` seconds where
+    /// Claude Code keeps it.
+    fn sign_in(&self, expires: i64) {
         let login = json!({"claudeAiOauth": {
             "accessToken": "test-token",
             "expiresAt": (Timestamp::now().as_second() + expires) * 1000,
         }});
-        fs::create_dir_all(home.path().join(".claude")).expect("login directory");
+        fs::create_dir_all(self.path().join(".claude")).expect("login directory");
         fs::write(
-            home.path().join(".claude/.credentials.json"),
+            self.path().join(".claude/.credentials.json"),
             login.to_string(),
         )
         .expect("login");
-        api.clone_into(&mut home.1);
-        home
     }
 
     fn path(&self) -> &Path {
@@ -342,6 +348,18 @@ fn expired_login_is_not_sent() {
     let (api, asked) = usage_server(&usage(37.0, 26.0, &[]));
     let home = Home::signed_in(&api, -60);
     assert_eq!(home.line(&fresh_session("a")), "limits: no data");
+    assert!(asked.lock().expect("request log").is_empty());
+}
+
+#[test]
+fn login_is_looked_for_once_in_five_minutes() {
+    // looking for the login starts a program on macOS: a session without
+    // one must not do it on every refresh
+    let (api, asked) = usage_server(&usage(37.0, 26.0, &[]));
+    let home = Home::signed_in(&api, -60);
+    home.line(&fresh_session("a"));
+    home.sign_in(3600);
+    home.line(&fresh_session("b"));
     assert!(asked.lock().expect("request log").is_empty());
 }
 
