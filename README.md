@@ -137,11 +137,15 @@ are Claude Code's estimate at list prices, not an invoice.
 
 - `quotaline` reads the Claude Code login token (the macOS keychain, or
   `.credentials.json` in the Claude Code folder) and sends it to
-  `api.anthropic.com`, and nowhere else, to ask for your limits. It asks at
-  most once in five minutes across all sessions. It never refreshes or stores
-  the token. It keeps the numbers in `quotaline/limits.json` in your cache
-  folder (`~/.cache`, or `%LOCALAPPDATA%` on Windows). `--setup` changes one
-  key, `statusLine`, in the Claude Code settings, and only after you agree.
+  `api.anthropic.com` to ask for your limits. The only other place it can go
+  is a test server on this machine that the `QUOTALINE_API` variable names. It
+  asks at most once in five minutes across all sessions, and not at all when
+  it can't write its cache folder, where the sessions note when they last
+  asked. It never refreshes or stores the token. It keeps the numbers in
+  `quotaline/limits.json`, with a lock file next to it, in your cache folder
+  (`$XDG_CACHE_HOME` or `~/.cache`, or `%LOCALAPPDATA%` on Windows). `--setup`
+  changes one key, `statusLine`, in the Claude Code settings, and only after
+  you agree.
 - `image-preview` reads the images Claude Code stored for the session and
   writes resized copies next to them, in the session's temp folder. It runs
   ImageMagick, `sips` or PowerShell to read a picture, and the system viewer
