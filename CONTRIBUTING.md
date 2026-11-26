@@ -7,6 +7,9 @@ first so we can agree on the approach before you write it.
 
 - `plugins/image-preview`, `plugins/quick-peek`: Claude Code plugins in
   TypeScript. The code is in `hooks/`, the tests are `hooks/*.test.tsx`.
+- `plugins/LICENSE`: the notice of the MIT code the plugins started from.
+  An installed plugin is a copy of its own folder, so each plugin folder
+  carries the same file; `cargo test -p checks` keeps the three copies equal.
 - `quotaline/`: the status line, a Rust program.
 - `checks/`: tests of the repository itself.
 
