@@ -12,6 +12,6 @@ publish = false
 workspace = true
 
 [dependencies]
-jiff = "0.2.38"
+jiff = "1.0.2"
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
 ureq = { version = "3.5.0", default-features = false, features = ["rustls", "json"] }
