@@ -208,7 +208,7 @@ test('each path carries a card the terminal reveals over it', async ($, on) => {
   await startSession($)
   const ui = await reply($, `Listo: ${VIDEO}`)
   expect(await ui.find({ key: 'card:0:0' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /borrador\.mp4 · 12\.0 MB · \d+[smhd] ago · click: show in folder/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /borrador\.mp4 · 12\.0 MB · \d+[smhd] ago · click: show in file manager/ })).toBeDefined()
 })
 
 type Shown = { first: number; last: number; of: number }
@@ -277,7 +277,7 @@ test('the card of a file of code shows its first lines, coloured by the engine',
   const ui = await reply($, 'Mira src/app.ts y el vídeo ' + VIDEO)
   expect(await ui.find({ type: 'Code' })).toMatchObject({ props: { source: CODE.trimEnd(), path: SOURCE, startLine: 1 } })
   expect(await ui.find({ key: 'card:0:0' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /app\.ts · \d+ B · \d+[smhd] ago · click: show in folder/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /app\.ts · \d+ B · \d+[smhd] ago · click: show in file manager/ })).toBeDefined()
 })
 
 
@@ -322,7 +322,7 @@ test('on Windows a path is a link, its card named by the file, and a click selec
   expect(await ui.find({ key: 'path:0:0' })).toMatchObject({ type: 'Client', props: { props: { label: WIN_VIDEO, path: WIN_VIDEO } } })
   expect(await ui.find({ key: 'path:1:0' })).toMatchObject({ props: { props: { label: 'src/app.ts', path: WIN_SOURCE } } })
   expect(await ui.find({ key: 'path:2:0' })).toMatchObject({ props: { props: { label: 'README.md', path: WIN_README } } })
-  expect(await ui.find({ type: 'Text', text: / borrador\.mp4 · 12\.0 MB · .* · click: show in folder / })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: / borrador\.mp4 · 12\.0 MB · .* · click: show in file manager / })).toBeDefined()
   expect(await ui.find({ type: 'Code' })).toMatchObject({ props: { path: WIN_SOURCE, startLine: 1 } })
 
   await ui.pointer({ type: 'down', x: 2, y: 0, button: 'left', in: 'path:0:0' })

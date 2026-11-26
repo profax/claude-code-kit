@@ -223,7 +223,7 @@ const ago = (ms: number) => {
 function cardOf (target: Target) {
   const name = nameOf(target.path) || target.path
   const what = target.stat.kind === 'dir' ? 'folder' : sizeOf(target.stat.size)
-  return ` ${name} · ${what} · ${ago(target.stat.mtimeMs)} · click: show in folder `
+  return ` ${name} · ${what} · ${ago(target.stat.mtimeMs)} · click: show in file manager `
 }
 
 /** Notes a transcript row before the first await, so in the transcript's order; true if it has moved. */
