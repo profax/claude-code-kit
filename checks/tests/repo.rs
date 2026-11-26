@@ -52,12 +52,25 @@ const BINARY: &[&str] = &[];
 
 /// Tracked files with their text. This file is left out: it has to spell
 /// what it looks for. A file deleted from the working tree has no text to
-/// get into a commit.
+/// get into a commit; any other file that is listed and can't be read, as in
+/// a sparse checkout, fails the checks. So every file is read, and no count
+/// of them is needed to tell that the checks saw the repository.
 fn tracked() -> Vec<(String, String)> {
+    let listed = git(&["ls-files", "-z"]);
+    // Outside this repository's own tree, as in an unpacked source archive
+    // inside another repository, git lists nothing or another tree's files
+    assert!(
+        listed
+            .split('\0')
+            .any(|name| name == "checks/tests/repo.rs"),
+        "git doesn't list this repository's files here"
+    );
+    let deleted = git(&["ls-files", "-z", "--deleted"]);
+    let deleted: Vec<&str> = deleted.split('\0').collect();
     let mut files = vec![];
     let mut unread = vec![];
-    for name in git(&["ls-files", "-z"]).split('\0') {
-        if name.is_empty() || name == "checks/tests/repo.rs" {
+    for name in listed.split('\0') {
+        if name.is_empty() || name == "checks/tests/repo.rs" || deleted.contains(&name) {
             continue;
         }
         match std::fs::read(root().join(name)) {
@@ -66,7 +79,6 @@ fn tracked() -> Vec<(String, String)> {
                 Err(_) if BINARY.contains(&name) => {}
                 Err(error) => unread.push(format!("{name}: {error}")),
             },
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => unread.push(format!("{name}: {error}")),
         }
     }
@@ -74,7 +86,6 @@ fn tracked() -> Vec<(String, String)> {
         unread.is_empty(),
         "files the checks can't read: {unread:#?}"
     );
-    assert!(files.len() > 10, "the check found next to nothing to read");
     files
 }
 
