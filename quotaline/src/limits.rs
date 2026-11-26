@@ -119,10 +119,10 @@ fn remember(kept: &mut Value, event: &Value, now: i64) -> Seen {
     seen
 }
 
-/// Merges the session's reading into the store and, when one is due, the
-/// server's answer. Returns whether the session's data has subscription
-/// limits.
-pub fn update(kept: &mut Value, event: &Value, now: i64) -> bool {
+/// Merges the session's reading into the store and, when one is due and
+/// `may_ask`, the server's answer. Returns whether the session's data has
+/// subscription limits.
+pub fn update(kept: &mut Value, event: &Value, now: i64, may_ask: bool) -> bool {
     let has_limits = WINDOWS
         .iter()
         .any(|(window, _)| event["rate_limits"][window]["used_percentage"].is_number());
@@ -144,7 +144,7 @@ pub fn update(kept: &mut Value, event: &Value, now: i64) -> bool {
     let due = kept["asked_at"]
         .as_i64()
         .is_none_or(|at| now.saturating_sub(at) >= ASK_EVERY);
-    if (!has_limits || seen != Seen::Same) && due {
+    if may_ask && (!has_limits || seen != Seen::Same) && due {
         kept["asked_at"] = json!(now);
         if let Some(answer) = login::token(now).and_then(|token| login::ask(&token)) {
             absorb(kept, &answer);

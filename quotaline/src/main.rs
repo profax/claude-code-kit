@@ -132,9 +132,7 @@ fn line() {
     let lock = dir
         .as_ref()
         .and_then(|dir| fs::File::create(dir.join("limits.lock")).ok());
-    if let Some(lock) = &lock {
-        let _ = lock.lock();
-    }
+    let locked = lock.as_ref().is_some_and(|lock| lock.lock().is_ok());
     let path = dir.as_ref().map(|dir| dir.join("limits.json"));
     let mut kept: Value = path
         .as_ref()
@@ -144,7 +142,9 @@ fn line() {
         .unwrap_or_else(|| json!({}));
     let now = Timestamp::now().as_second();
     let before = kept.clone();
-    let has_limits = limits::update(&mut kept, &event, now);
+    // A store that can't keep asked_at would let every refresh of every
+    // session ask the server
+    let has_limits = limits::update(&mut kept, &event, now, locked);
     // No subscription limits in the data of a session the store has never
     // seen with them: the session is billed by API key
     let paid = !has_limits
