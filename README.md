@@ -229,8 +229,12 @@ subscription login, the line shows that subscription's limits as well.
   opens the file with its default program, which runs the file if it is a
   program.
 
-The plugins send nothing over the network. When they pass a failure over,
-they write its cause to the Claude Code debug log.
+The plugins send nothing over the network. When a plugin can't do part of
+its work (quick-peek can't read a reply, image-preview can't read the prompt
+box or open its window), it does without that part and writes the cause to
+the Claude Code debug log, which `claude --debug` turns on. An image that
+can't be read shows the reason on its card. A click that can't start the
+viewer or the file manager does nothing.
 
 ## Updates
 
