@@ -1,0 +1,102 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # A tag on a commit that fails the checks publishes nothing
+  ci:
+    # A local reusable workflow already runs at the tagged commit, so the
+    # newer $/ form would change nothing here
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+
+  # One version for the whole kit: the tag, quotaline and both plugins. A
+  # plugin's version pins what `/plugin update` offers, so a release that
+  # forgot to raise it would reach nobody
+  draft:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # nosemgrep: github-actions-mutable-action-tag
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The tag is the version everywhere
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          got=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "quotaline") | .version')
+          test "$got" = "$want" || { echo "quotaline is $got, the tag says $want"; exit 1; }
+          for plugin in plugins/*/; do
+            got=$(jq -r .version "$plugin.claude-plugin/plugin.json")
+            test "$got" = "$want" || { echo "$plugin is $got, the tag says $want"; exit 1; }
+          done
+          grep -q "^## $want " CHANGELOG.md || { echo "CHANGELOG.md has no section for $want"; exit 1; }
+      - name: Draft the release
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "$GITHUB_REF_NAME" --notes "See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md)."
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  build:
+    needs: draft
+    strategy:
+      matrix:
+        include:
+          # musl: one file that depends on nothing in the system
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl }
+          - { os: macos-latest, target: x86_64-apple-darwin }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      # nosemgrep: github-actions-mutable-action-tag
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal --target "$TARGET"
+      - run: rustup default stable
+      - if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo build --release --locked -p quotaline --target "$TARGET"
+      - name: Pack with its checksum
+        run: |
+          name="quotaline-${GITHUB_REF_NAME#v}-$TARGET"
+          mkdir "$name"
+          cp LICENSE "$name/"
+          if [ "$RUNNER_OS" = Windows ]; then
+            cp "target/$TARGET/release/quotaline.exe" "$name/"
+            7z a "$name.zip" "$name" > /dev/null
+            archive="$name.zip"
+          else
+            cp "target/$TARGET/release/quotaline" "$name/"
+            tar -czf "$name.tar.gz" "$name"
+            archive="$name.tar.gz"
+          fi
+          if command -v sha256sum > /dev/null; then sha256sum "$archive" > "$archive.sha256"; else shasum -a 256 "$archive" > "$archive.sha256"; fi
+          gh release upload "$GITHUB_REF_NAME" "$archive" "$archive.sha256"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # Published only once every build is in: nobody downloads half a release
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    # One pull request a week for the small updates, majors each apart
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  # The pinned Claude Code is the oldest version the plugins promise to work
+  # on (`engines` in each plugin.json): it moves by hand, with that promise
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "@anthropic-ai/claude-code"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]

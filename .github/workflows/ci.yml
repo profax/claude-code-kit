@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  # A pull request is checked once, by its own run; pushes check main
+  push:
+    branches: [main]
+  pull_request:
+  # The release runs the same checks before it builds anything
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # The plugins on the oldest Claude Code they promise to work on: the version
+  # pinned in package.json is the one `engines` names in each plugin.json
+  plugins:
+    runs-on: ubuntu-latest
+    # Actions from actions/* keep their tags; third-party ones are pinned by hash
+    steps:
+      # nosemgrep: github-actions-mutable-action-tag
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: npm ci --no-fund --no-audit
+      # npm runs no install scripts unasked, and without this one the `claude`
+      # wrapper has no binary behind it
+      - run: node node_modules/@anthropic-ai/claude-code/install.cjs
+      - run: npx claude --version
+      - run: npm run validate
+      - run: npm test
+
+  # quotaline where it runs. Lints change between releases, so clippy and
+  # rustfmt run on one system only
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # nosemgrep: github-actions-mutable-action-tag
+      - uses: actions/checkout@v7
+        with:
+          # the repository check reads every commit message
+          fetch-depth: 0
+          persist-credentials: false
+      # rustup is on the runner image, so no third-party action is needed
+      - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+      - run: rustup default stable
+      - if: matrix.os == 'ubuntu-latest'
+        run: cargo fmt --all --check
+      - if: matrix.os == 'ubuntu-latest'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+
+  # The oldest Rust that quotaline promises to build with (rust-version in
+  # its Cargo.toml)
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      # nosemgrep: github-actions-mutable-action-tag
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install 1.89 --profile minimal
+      - run: cargo +1.89 test --locked -p quotaline

@@ -1,0 +1,48 @@
+name: Bug report
+description: Something works wrong or is missing
+body:
+  - type: dropdown
+    id: part
+    attributes:
+      label: Part
+      options:
+        - image-preview
+        - quick-peek
+        - quotaline
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: What you did, step by step.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What you expected to see.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What you saw instead. A screenshot of the terminal helps.
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System and terminal
+      description: For example, macOS 15 with Ghostty 1.3, or Windows 11 with WSL2 and Windows Terminal. Say if you use tmux or SSH.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: Output of claude --version, and of quotaline --version or the plugin's version from /plugin.
+    validations:
+      required: true
