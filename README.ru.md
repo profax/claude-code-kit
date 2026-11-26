@@ -138,7 +138,7 @@ cargo install --locked --git https://github.com/profax/claude-code-kit quotaline
 <summary>Настройка вручную</summary>
 
 Добавьте это в `~/.claude/settings.json`, с полным путём к программе. В
-Windows путь пишется с прямыми косыми, например
+Windows путь пишется с косой чертой `/`, например
 `C:/Users/you/bin/quotaline.exe`: так его исполняют и Git Bash, и PowerShell.
 
 ```json
@@ -210,22 +210,22 @@ Claude Code по опубликованным ценам, а не счёт. Ес
 
 ## Что читает, что пишет и что отправляет
 
-- `quotaline` читает ключ входа Claude Code (связка ключей macOS или
+- `quotaline` читает токен входа Claude Code (связка ключей macOS или
   `.credentials.json` в папке Claude Code) и отправляет его на
-  `api.anthropic.com`, чтобы спросить ваши лимиты. Кроме него ключ может уйти
+  `api.anthropic.com`, чтобы спросить ваши лимиты. Кроме него токен может уйти
   только на проверочный сервер на этой машине, который называет переменная
   `QUOTALINE_API`. Спрашивает не чаще раза в пять минут на все сессии и не
   спрашивает вовсе, если не может писать в папку кэша: там сессии отмечают,
-  когда спрашивали в последний раз. Ключ не обновляет и не сохраняет. Числа
+  когда спрашивали в последний раз. Токен не обновляет и не сохраняет. Числа
   хранит в `quotaline/limits.json`, рядом с файлом блокировки, в папке кэша
   (`$XDG_CACHE_HOME` или `~/.cache`, в Windows `%LOCALAPPDATA%`). `--setup`
-  меняет в настройках Claude Code один ключ, `statusLine`, и только после
+  меняет в настройках Claude Code одно поле, `statusLine`, и только после
   вашего согласия.
 - `image-preview` читает картинки, которые Claude Code сохранил для сессии,
-  и пишет рядом уменьшенные копии, во временную папку сессии. Для чтения
+  и пишет рядом копии другого размера, во временную папку сессии. Для чтения
   картинки запускает ImageMagick, `sips` или PowerShell, по щелчку программу
   просмотра системы. В Windows и под WSL ещё держит во временной папке Windows
-  помощника окна, `image-preview-popup-1.dll`.
+  вспомогательный файл окна с картинкой, `image-preview-popup-1.dll`.
 - `quick-peek` читает размер, дату и показанные в карточке строки файлов,
   названных в ответе. По щелчку запускает файловый менеджер. По щелчку с Alt
   открывает файл программой, назначенной для него в системе: если файл сам
@@ -279,4 +279,5 @@ claude plugin update quick-peek@claude-code-kit
 
 [MIT](LICENSE). Плагины выросли из `image-preview` и `quick-peek` проекта
 [better-claude](https://github.com/midudev/better-claude), автор Miguel Ángel
-Durán, тоже MIT; его уведомление лежит в [plugins/LICENSE](plugins/LICENSE).
+Durán, тоже MIT; текст его лицензии с именем автора лежит в
+[plugins/LICENSE](plugins/LICENSE).
