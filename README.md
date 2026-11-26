@@ -10,14 +10,16 @@ Three additions to Claude Code in the terminal: look at a pasted image before
 you send it, peek into a file a reply names, and keep your limits in the
 status line.
 
-| Part | What it does | Where it works |
-|---|---|---|
-| [image-preview](#image-preview) | Hover `[Image #N]` to see the picture | macOS, Linux, Windows, WSL |
-| [quick-peek](#quick-peek) | Paths in replies become links with a preview card | macOS, Linux, Windows, WSL |
-| [quotaline](#quotaline) | Status line: context, limits, time until they reset | macOS, Linux, Windows, WSL |
+| Part | What it does |
+|---|---|
+| [image-preview](#image-preview) | Hover `[Image #N]` to see the picture |
+| [quick-peek](#quick-peek) | Paths in replies become links with a preview card |
+| [quotaline](#quotaline) | Status line: context, limits, time until they reset |
 
-The plugins need the fullscreen interface and a terminal with a mouse;
-quotaline runs in any terminal.
+All three run on macOS, Linux, Windows and WSL. The plugins work by
+hovering, so they need Claude Code's fullscreen interface, which
+`/tui fullscreen` turns on, and a terminal that passes mouse movement to
+programs. quotaline runs in any terminal.
 
 The parts don't depend on each other. Install the ones you want.
 
