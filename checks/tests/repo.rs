@@ -288,6 +288,27 @@ fn one_version_for_the_kit() {
     );
 }
 
+/// The plugins started from MIT code whose notice must go with every copy.
+/// An installed plugin is a copy of its own folder, so each folder carries
+/// the notice, the same as `plugins/LICENSE`.
+#[test]
+fn each_plugin_carries_the_license_notice() {
+    let notice = read("plugins/LICENSE");
+    let listed = git(&["ls-files", "-z", "plugins"]);
+    let wrong: Vec<String> = plugins()
+        .into_iter()
+        .map(|plugin| format!("{plugin}/LICENSE"))
+        .filter(|file| {
+            !listed.split('\0').any(|name| name == file)
+                || std::fs::read_to_string(root().join(file)).ok() != Some(notice.clone())
+        })
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "not tracked, or not the same as plugins/LICENSE: {wrong:#?}"
+    );
+}
+
 #[test]
 fn the_home_check_tells_a_real_user_from_a_sample_one() {
     assert_eq!(real_home("at /Users/jane/project", "/Users/"), Some("jane"));
