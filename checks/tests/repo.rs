@@ -1,10 +1,13 @@
 //! What must not get into the repository, in any tracked file or commit
 //! message: text in Russian outside the Russian README, a path into
-//! somebody's home folder, and tool signatures in commits. Review misses
-//! these; a test does not.
+//! somebody's home folder, and tool signatures in commits. And the facts
+//! written down in several files, which must agree. Review misses these; a
+//! test does not.
 
 use std::path::Path;
 use std::process::Command;
+
+use serde_json::Value;
 
 /// The only files written in Russian.
 const RUSSIAN: &[&str] = &["README.ru.md"];
@@ -55,6 +58,49 @@ fn tracked() -> Vec<(String, String)> {
         .collect();
     assert!(files.len() > 10, "the check found next to nothing to read");
     files
+}
+
+fn read(name: &str) -> String {
+    std::fs::read_to_string(root().join(name)).unwrap_or_else(|error| panic!("{name}: {error}"))
+}
+
+fn json(name: &str) -> Value {
+    serde_json::from_str(&read(name)).unwrap_or_else(|error| panic!("{name}: {error}"))
+}
+
+/// The folders of the plugins, such as `plugins/quick-peek`: those with a
+/// tracked `.claude-plugin/plugin.json`.
+fn plugins() -> Vec<String> {
+    let found: Vec<String> = git(&["ls-files", "-z", "plugins"])
+        .split('\0')
+        .filter_map(|name| name.strip_suffix("/.claude-plugin/plugin.json"))
+        .map(str::to_owned)
+        .collect();
+    assert!(!found.is_empty(), "no plugin.json under plugins/");
+    found
+}
+
+fn is_version(text: &str) -> bool {
+    let parts: Vec<&str> = text.split('.').collect();
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// The versions `text` names right after `prefix`, as in "Claude Code
+/// 2.1.325 or later".
+fn versions_after(text: &str, prefix: &str) -> Vec<String> {
+    text.match_indices(prefix)
+        .filter_map(|(at, _)| {
+            let rest = &text[at + prefix.len()..];
+            let end = rest
+                .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+                .unwrap_or(rest.len());
+            let version = rest[..end].trim_end_matches('.');
+            is_version(version).then(|| version.to_owned())
+        })
+        .collect()
 }
 
 fn has_cyrillic(text: &str) -> bool {
@@ -138,6 +184,54 @@ fn commit_messages_are_plain_english() {
         .map(|message| message.lines().next().unwrap_or_default())
         .collect();
     assert!(found.is_empty(), "commits to reword: {found:#?}");
+}
+
+/// CI runs the plugins on the Claude Code that `package.json` pins, so that
+/// is the oldest version they are known to load on. A promise of an older
+/// one is never tested, and a module that calls something this version lacks
+/// does not load at all.
+#[test]
+fn one_lowest_claude_code_version_everywhere() {
+    let pinned = json("package.json")["devDependencies"]["@anthropic-ai/claude-code"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(
+        is_version(&pinned),
+        "package.json must pin an exact @anthropic-ai/claude-code, not {pinned:?}"
+    );
+    let mut named = vec![];
+    for plugin in plugins() {
+        let file = format!("{plugin}/.claude-plugin/plugin.json");
+        let engine = json(&file)["engines"]["claude-code"]
+            .as_str()
+            .unwrap_or("none")
+            .to_owned();
+        named.push((file, engine));
+    }
+    for readme in ["README.md", "README.ru.md"] {
+        let versions = versions_after(&read(readme), "Claude Code ");
+        assert!(
+            !versions.is_empty(),
+            "{readme} names no Claude Code version"
+        );
+        named.extend(versions.into_iter().map(|v| (readme.to_owned(), v)));
+    }
+    let wrong: Vec<&(String, String)> = named
+        .iter()
+        .filter(|(file, version)| {
+            let want = if file.ends_with("plugin.json") {
+                format!(">={pinned}")
+            } else {
+                pinned.clone()
+            };
+            *version != want
+        })
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "package.json pins Claude Code {pinned}, these say otherwise: {wrong:#?}"
+    );
 }
 
 #[test]
