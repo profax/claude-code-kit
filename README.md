@@ -94,9 +94,12 @@ prompts you already sent.
 How the picture is drawn depends on the terminal:
 
 - Ghostty and kitty draw the image itself.
-- On Windows and under WSL it opens in a small window by the pointer. The
-  window takes no focus and closes when the pointer leaves.
-- Any other terminal, and anything inside tmux, draws it in colored cells.
+- On Windows and under WSL it opens in a small window by the pointer, in tmux
+  too. The window takes no focus and closes when the pointer leaves.
+- Any other terminal draws it in colored cells, and so do Ghostty and kitty
+  inside tmux. If your terminal can show pictures, set
+  `CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1` before you start Claude Code, and the
+  card sends it the picture instead.
 
 On Linux it needs ImageMagick (`magick` or `convert`) to read the picture.
 macOS and Windows read it with what the system has, and use ImageMagick when
