@@ -234,6 +234,60 @@ fn one_lowest_claude_code_version_everywhere() {
     );
 }
 
+/// The `version` of the `[package]` table in a Cargo.toml.
+fn package_version(manifest: &str) -> Option<String> {
+    let mut table = "";
+    for line in manifest.lines().map(str::trim) {
+        if line.starts_with('[') {
+            table = line;
+        } else if table == "[package]"
+            && let Some(value) = line.strip_prefix("version")
+            && let Some(value) = value.trim_start().strip_prefix('=')
+        {
+            return Some(value.trim().trim_matches('"').to_owned());
+        }
+    }
+    None
+}
+
+/// One version covers the kit. A plugin's version decides what `/plugin
+/// update` offers, so a release that raised only the program's would reach
+/// no plugin user. The release workflow checks the same against the tag;
+/// this finds the mismatch on the push that makes it.
+#[test]
+fn one_version_for_the_kit() {
+    let want = package_version(&read("quotaline/Cargo.toml"))
+        .expect("quotaline/Cargo.toml has a [package] version");
+    let mut named = vec![];
+    for plugin in plugins() {
+        let file = format!("{plugin}/.claude-plugin/plugin.json");
+        named.push((file.clone(), json(&file)["version"].clone()));
+    }
+    // The marketplace may carry versions too; where it does, they must agree
+    let file = ".claude-plugin/marketplace.json";
+    let marketplace = json(file);
+    let listed = marketplace["plugins"].as_array().into_iter().flatten();
+    for version in std::iter::once(&marketplace["metadata"]).chain(listed) {
+        if let Some(version) = version.get("version") {
+            named.push((file.to_owned(), version.clone()));
+        }
+    }
+    let newest = read("CHANGELOG.md")
+        .lines()
+        .find_map(|line| line.strip_prefix("## "))
+        .and_then(|heading| heading.split_whitespace().next())
+        .map(Value::from);
+    named.push(("CHANGELOG.md".to_owned(), newest.unwrap_or_default()));
+    let wrong: Vec<&(String, Value)> = named
+        .iter()
+        .filter(|(_, version)| version.as_str() != Some(&want))
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "quotaline is {want}, these say otherwise: {wrong:#?}"
+    );
+}
+
 #[test]
 fn the_home_check_tells_a_real_user_from_a_sample_one() {
     assert_eq!(real_home("at /Users/jane/project", "/Users/"), Some("jane"));
