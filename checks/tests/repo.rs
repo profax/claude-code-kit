@@ -338,6 +338,89 @@ fn each_plugin_carries_the_license_notice() {
     );
 }
 
+/// The anchor GitHub gives a Markdown heading: lower case, spaces as
+/// hyphens, other punctuation dropped.
+fn anchor(heading: &str) -> String {
+    heading
+        .to_lowercase()
+        .chars()
+        .filter_map(|c| match c {
+            ' ' => Some('-'),
+            c if c.is_alphanumeric() || c == '-' || c == '_' => Some(c),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The anchors of the headings in a Markdown text, outside code blocks.
+fn anchors(text: &str) -> Vec<String> {
+    let mut fenced = false;
+    let mut found = vec![];
+    for line in text.lines() {
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+        } else if !fenced && let Some(heading) = line.strip_prefix('#') {
+            found.push(anchor(heading.trim_start_matches('#').trim()));
+        }
+    }
+    found
+}
+
+/// The anchors that `text` links to after `prefix`, as in `](#install`.
+fn links_after(text: &str, prefix: &str) -> Vec<String> {
+    text.match_indices(prefix)
+        .map(|(at, _)| {
+            let rest = &text[at + prefix.len()..];
+            let end = rest
+                .find(|c: char| !(c.is_alphanumeric() || c == '-' || c == '_'))
+                .unwrap_or(rest.len());
+            rest[..end].to_owned()
+        })
+        .collect()
+}
+
+/// A link to a part of a README must land on the one heading of that part.
+/// GitHub gives a repeated heading the anchor of the first one, so a link
+/// to the second lands on the wrong section.
+#[test]
+fn readme_links_lead_to_one_heading() {
+    let mut wrong = vec![];
+    for readme in ["README.md", "README.ru.md"] {
+        let found = anchors(&read(readme));
+        for (n, name) in found.iter().enumerate() {
+            if found[..n].contains(name) {
+                wrong.push(format!("{readme}: two headings #{name}"));
+            }
+        }
+        for link in links_after(&read(readme), "](#") {
+            if !found.contains(&link) {
+                wrong.push(format!("{readme}: no heading for #{link}"));
+            }
+        }
+    }
+    let english = anchors(&read("README.md"));
+    // the plugins' READMEs and manifests link into the English README
+    for (name, text) in tracked() {
+        for link in links_after(&text, "github.com/profax/claude-code-kit#") {
+            if !english.contains(&link) {
+                wrong.push(format!("{name}: no heading in README.md for #{link}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+#[test]
+fn anchors_are_the_ones_github_gives() {
+    assert_eq!(
+        anchor("What it reads, writes and sends"),
+        "what-it-reads-writes-and-sends"
+    );
+    assert_eq!(anchor("Install `quotaline`"), "install-quotaline");
+    assert_eq!(anchor("Известные ограничения"), "известные-ограничения");
+    assert_eq!(anchors("# a\n```\n# b\n```\n## C d"), ["a", "c-d"]);
+}
+
 #[test]
 fn the_home_check_tells_a_real_user_from_a_sample_one() {
     assert_eq!(real_home("at /Users/jane/project", "/Users/"), Some("jane"));

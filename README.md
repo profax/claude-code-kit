@@ -23,7 +23,7 @@ The parts don't depend on each other. Install the ones you want.
 
 ## Install
 
-### The plugins
+### Install the plugins
 
 They need Claude Code 2.1.325 or later.
 
@@ -37,7 +37,7 @@ Then run `/tui fullscreen` once. A terminal reports the pointer only in the
 fullscreen interface, and both plugins work by hovering. In tmux you also need
 `set -g mouse on`.
 
-### quotaline
+### Install quotaline
 
 1. Download the archive for your system from
    [Releases](https://github.com/profax/claude-code-kit/releases), unpack it,
