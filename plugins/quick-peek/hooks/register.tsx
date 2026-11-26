@@ -1,6 +1,6 @@
 // The paths in a reply become links: under the pointer the terminal shows a card by the path (name,
 // size, age, and for code its first lines), a click shows the path in the file manager, and with
-// Alt opens it. Terminal only. Based on quick-peek from better-claude (MIT, ../../LICENSE), without
+// Alt opens it. Terminal only. Based on quick-peek from better-claude (MIT, ../LICENSE), without
 // its windows.
 import type { Elements, EngineInterface, EventOf, FsStat, Register, RenderElement } from 'claude-code'
 

@@ -1,7 +1,7 @@
 // A pasted image, [Image #N], previewed on hover: above the prompt box while the prompt is being
 // written, and on the prompts already sent. Ghostty and kitty draw the picture itself, on Windows
 // and under WSL a Windows window by the pointer shows it, and other terminals paint colored cells.
-// Based on image-preview from better-claude (MIT, ../../LICENSE), without its macOS and Tk windows.
+// Based on image-preview from better-claude (MIT, ../LICENSE), without its macOS and Tk windows.
 import { atom, memberOf, read, update } from 'claude-code'
 import type { Elements, EngineInterface, EventOf, Register, RenderElement } from 'claude-code'
 
