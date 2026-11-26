@@ -25,6 +25,12 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 ```
 
+CI also tests quotaline on the oldest Rust it supports, the `rust-version` in
+`quotaline/Cargo.toml`: `cargo +1.89 test --locked -p quotaline`. Every Cargo
+command runs with `--locked`, which fails when `Cargo.lock` is out of date: a
+change to the dependencies or to a version comes with the `Cargo.lock` that a
+plain `cargo build` writes.
+
 `npm ci` installs the oldest Claude Code the plugins support, the version
 `engines` names in each `plugin.json`. A plugin that calls something this
 version lacks does not load there at all, so the tests must pass on it.
