@@ -154,15 +154,17 @@ Paste an image and a `[Image #N]` chip appears above the prompt. Hover it to
 see the picture; click to open it in the system viewer. The same works on the
 prompts you already sent.
 
-How the picture is drawn depends on the terminal:
+How the picture is shown depends on the terminal:
 
-- Ghostty and kitty draw the image itself.
-- On Windows and under WSL it opens in a small window by the pointer, in tmux
-  too. The window takes no focus and closes when the pointer leaves.
-- Any other terminal draws it in colored cells, and so do Ghostty and kitty
-  inside tmux. If your terminal can show pictures, set
-  `CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1` before you start Claude Code, and the
-  card sends it the picture instead.
+- Ghostty and kitty draw the picture themselves.
+- Other terminals show it in colored cells, and so do Ghostty and kitty inside
+  tmux, which passes no pictures through. If your terminal can show pictures,
+  set `CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1` before you start Claude Code, and
+  the card sends it the picture instead.
+
+On Windows and under WSL, a window by the pointer takes the place of the
+colored cells, inside tmux too. The window takes no focus and closes when the
+pointer leaves. Over SSH there is no window, and the cells stay.
 
 On Linux it needs ImageMagick (`magick` or `convert`) to read the picture.
 macOS and Windows read it with what the system has, and use ImageMagick when

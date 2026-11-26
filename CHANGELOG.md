@@ -8,9 +8,9 @@ and both plugins.
 First public release.
 
 - **image-preview**: hover `[Image #N]` above the prompt or on a sent prompt
-  to see the picture. Ghostty and kitty draw the image itself; Windows and
-  WSL show it in a window by the pointer; other terminals draw it in colored
-  cells.
+  to see the picture. Ghostty and kitty draw the picture themselves; other
+  terminals show it in colored cells, or, on Windows and under WSL, in a
+  window by the pointer.
 - **quick-peek**: paths in replies become links with a card (size, age, first
   lines); a click shows the file in the file manager.
 - **quotaline**: a status line with the context fill, the five-hour and weekly
