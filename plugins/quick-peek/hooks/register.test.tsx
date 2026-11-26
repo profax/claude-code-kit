@@ -20,9 +20,9 @@ const CODE = ['import { run } from \'./run\'', '', '// Starts it', 'export async
 const SCREEN = { columns: 60, rows: 40, isFullscreen: true }
 
 /**
- * Everything beneath the mod: the session (its folder lost when `cwdError` is given), the files that
+ * Everything beneath the plugin: the session (its folder lost when `cwdError` is given), the files that
  * are there, the programs it runs (those in `failing` exit 1), what the engine draws, and the lines
- * the mod logs.
+ * the plugin logs.
  */
 function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'linux' }: { env?: Record<string, string>; cwd?: string; cwdError?: string; failing?: string[]; platform?: 'linux' | 'macos' | 'windows' | 'wsl' } = {}) {
   const clock = mock.clock(on, { now: 0 })
@@ -38,7 +38,7 @@ function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'lin
   on('session.cwd', () => (cwdError !== undefined ? { deny: cwdError } : { value: cwd ?? root }))
   on('session.root', () => ({ value: root }))
   on('process.run', ($, e) => {
-    // `uname` only tells the mod which system it is on; Windows has none.
+    // `uname` only tells the plugin which system it is on; Windows has none.
     if (e.argv[0] === 'uname') {
       if (isWindows) return { deny: 'ENOENT: uname' }
       return { value: { exitCode: 0, stdout: platform === 'macos' ? 'Darwin\n' : 'Linux\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
@@ -48,7 +48,7 @@ function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'lin
     return { value: { exitCode: failing.includes(e.argv[0]!) ? 1 : 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   // A host that is not Windows takes a Windows path for a relative one and puts its own working
-  // folder before it: the world looks at the path the mod asked about.
+  // folder before it: the world looks at the path the plugin asked about.
   const asked = (path: string) => path.replace(/^\/.*\/(?=[A-Za-z]:\\)/, '')
   on('fs.stat', ($, e) => {
     const path = asked(e.path)
@@ -140,7 +140,7 @@ test('after a `cd` into a folder of the project, a relative path leads from ther
   expect(await ui.find({ key: 'path:2:0' })).toMatchObject({ props: { props: { label: 'README.md', path: README } } })
 })
 
-test('a reply the mod fails to read is the engine\'s, and the cause goes to the debug log once', async ($, on) => {
+test('a reply the plugin fails to read is the engine\'s, and the cause goes to the debug log once', async ($, on) => {
   const w = world(on, { cwdError: 'the session has no folder' })
   await startSession($)
   const ui = await reply($, `Mira ${VIDEO}`)

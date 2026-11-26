@@ -1,4 +1,4 @@
-// The part of markdown the mod draws itself: a reply cut into blocks, the inline runs of a
+// The part of markdown the plugin draws itself: a reply cut into blocks, the inline runs of a
 // paragraph or a list item, and those runs wrapped into rows as the engine wraps a reply's text.
 // Every other block (a heading, a fence, a table, a quote) is drawn by the engine's own Markdown.
 
@@ -11,7 +11,7 @@ export type Run = { text: string; style: Style; link?: number }
 /** A row of a wrapped paragraph. */
 export type Row = Run[]
 
-/** A block of the reply: `prose` the mod may draw itself, `other` the engine draws. `gap`, blank lines before it. */
+/** A block of the reply: `prose` the plugin may draw itself, `other` the engine draws. `gap`, blank lines before it. */
 export type Block = { kind: 'paragraph' | 'list' | 'other'; text: string; gap: number }
 
 /** A list item: its marker as written, its text (lines joined), the items under it, blank lines before it. */

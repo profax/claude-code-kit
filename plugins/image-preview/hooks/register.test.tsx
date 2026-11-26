@@ -44,13 +44,13 @@ function bmp (rows: number[][]) {
 
 /**
  * The path as the mocked session wrote it. A Windows host hands the handlers `C:\tmp\claude-501\...`
- * for the `/tmp/claude-501/...` the mod asked about, and any other host puts its own working folder
+ * for the `/tmp/claude-501/...` the plugin asked about, and any other host puts its own working folder
  * before a Windows path, so the world compares them the POSIX way, from the drive on.
  */
 const posix = (path: string) => path.replace(/^\/.*\/(?=[A-Za-z]:\\)/, '').replace(/^[A-Za-z]:(?=[\\/])/, '').replaceAll('\\', '/')
 
 /**
- * Everything beneath the mod: the session, its temp folder with the stored images, the prompt box,
+ * Everything beneath the plugin: the session, its temp folder with the stored images, the prompt box,
  * ImageMagick, and what the engine draws. (A test cannot type into the box: the draft is there at start.)
  */
 function world (
@@ -80,7 +80,7 @@ function world (
   on('process.run', async ($, e) => {
     // A slow machine takes seconds to start PowerShell from WSL.
     if (readingMs > 0 && e.argv[0] === 'powershell.exe') await clock.sleep(readingMs)
-    // `uname` only tells the mod which system it is on; Windows has neither it nor the others.
+    // `uname` only tells the plugin which system it is on; Windows has neither it nor the others.
     if (isWindows && ['uname', 'id', 'mkdir'].includes(e.argv[0]!)) {
       runs.push([...e.argv])
       runEnvs.push({ ...e.init?.env })
@@ -755,7 +755,7 @@ test('a picture still being read when a resumed session starts is kept, not drop
   expect(keyed(await message.drawn(), 'sent:1')).toBeDefined()
 })
 
-test('a reading the reloaded mod left unfinished is read again, whatever the old one wrote down', async ($, on) => {
+test('a reading the reloaded plugin left unfinished is read again, whatever the old one wrote down', async ($, on) => {
   const w = world(on)
   // The module before the reload was still reading when it was unloaded, and wrote its failure
   // over the empty state the new one starts with.

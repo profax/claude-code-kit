@@ -1,4 +1,4 @@
-/** A pasted image as the mod read it: its file, format, size and pixel shape, or why it has no preview. */
+/** A pasted image as the plugin read it: its file, format, size and pixel shape, or why it has no preview. */
 export type Picture =
   | { file: string; format: string; bytes: number; width: number; height: number; png?: string }
   | { error: string }

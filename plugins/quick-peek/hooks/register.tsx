@@ -20,12 +20,12 @@ type OnScreen = NonNullable<Transcript['props']['onScreen']>
 /** A path in a reply that leads somewhere: where, what is there, the line it names, the card's lines. */
 type Target = { path: string; stat: FsStat; line?: number; code?: Excerpt }
 type DrawnItem = { marker: string; runs: Run[]; children: DrawnItem[]; gap: number }
-/** A part of a reply: drawn by the engine's Markdown, or by the mod with its paths as links. */
+/** A part of a reply: drawn by the engine's Markdown, or by the plugin with its paths as links. */
 type Part =
   | { kind: 'markdown'; text: string; gap: number }
   | { kind: 'paragraph'; runs: Run[]; gap: number }
   | { kind: 'list'; items: DrawnItem[]; gap: number }
-/** How the mod draws a reply: its parts, and the paths `Run.link` points into. */
+/** How the plugin draws a reply: its parts, and the paths `Run.link` points into. */
 type Plan = { parts: Part[]; targets: Target[] }
 /**
  * A transcript row: its number among the rows in the order first drawn, how many rows had been
@@ -40,7 +40,7 @@ type Seen = { component: Transcript['component']; seen: number; drawnAt: number;
 type Place = { top: number; lines: number }
 /**
  * A link in a reply: how many of the reply's lines are above it at the least, and how many of the
- * file's lines its card wants. The mod cannot tell how tall the engine's Markdown is and counts
+ * file's lines its card wants. The plugin cannot tell how tall the engine's Markdown is and counts
  * each of its blocks as one line.
  */
 type Spot = { above: number; lines: number }
@@ -128,7 +128,7 @@ function link (run: Run, found: { start: number; end: number; link: number }[]):
 }
 
 /**
- * The mod draws the paragraphs and lists that hold a path leading somewhere; the engine's Markdown
+ * The plugin draws the paragraphs and lists that hold a path leading somewhere; the engine's Markdown
  * draws the other blocks and what lies between. Null when no path leads anywhere: the engine draws
  * the reply.
  */
@@ -442,7 +442,7 @@ function draw (ui: Ui, e: Message, plan: Plan) {
   return drawn
 }
 
-/** The tree from `next` with the engine's node replaced by `mine`: what other mods drew around it stays. */
+/** The tree from `next` with the engine's node replaced by `mine`: what other plugins drew around it stays. */
 function swap (drawn: RenderElement, mine: RenderElement): RenderElement {
   let isSwapped = false
   const walk = (node: unknown): unknown => {
@@ -528,7 +528,7 @@ export const register: Register = (on) => {
     if (e.surface !== 'terminal' || e.viewport?.isFullscreen !== true) return next(e)
     if (note(e)) follow($, e.requestId)
     if (e.component !== 'AssistantMessage' || e.props.isSummary) return next(e)
-    // A reply the mod can't read is the engine's to draw.
+    // A reply the plugin can't read is the engine's to draw.
     const plan = await planOf($, e.props.text).catch(error => {
       logOnce($, `reading a reply failed: ${error instanceof Error ? error.message : String(error)}`)
       return null
