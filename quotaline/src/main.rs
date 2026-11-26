@@ -21,6 +21,7 @@ mod setup;
 mod spend;
 
 use std::fs;
+use std::io::IsTerminal as _;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -83,9 +84,12 @@ Usage:
 Settings: ~/.claude/settings.json, or settings.json in $CLAUDE_CONFIG_DIR
 when that's set.";
 
-/// The mode the arguments ask for, or what is wrong with them.
-fn mode(args: &[&str]) -> Result<Mode, String> {
+/// The mode the arguments ask for, or what is wrong with them. `terminal`
+/// tells whether stdin is a terminal: Claude Code always pipes the session's
+/// data, so the bare command in a terminal is a person asking what it does.
+fn mode(args: &[&str], terminal: bool) -> Result<Mode, String> {
     match args {
+        [] if terminal => Ok(Mode::Help),
         [] => Ok(Mode::Line),
         ["--version" | "-V"] => Ok(Mode::Version),
         ["--help" | "-h"] => Ok(Mode::Help),
@@ -110,7 +114,7 @@ fn main() -> ExitCode {
         .map(|arg| arg.to_string_lossy().into_owned())
         .collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    match mode(&args) {
+    match mode(&args, std::io::stdin().is_terminal()) {
         Ok(Mode::Line) => line(),
         Ok(Mode::Version) => println!("quotaline {}", env!("CARGO_PKG_VERSION")),
         Ok(Mode::Help) => println!("quotaline {}\n\n{HELP}", env!("CARGO_PKG_VERSION")),
