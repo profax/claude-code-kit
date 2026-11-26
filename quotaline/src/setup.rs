@@ -470,8 +470,8 @@ mod tests {
             Some("'/Users/John Smith/bin/quotaline'")
         );
         assert_eq!(
-            command("/home/o'brien/$bin/quotaline", false, false).as_deref(),
-            Some(r"'/home/o'\''brien/$bin/quotaline'")
+            command("/home/user/o'brien/$bin/quotaline", false, false).as_deref(),
+            Some(r"'/home/user/o'\''brien/$bin/quotaline'")
         );
     }
 
