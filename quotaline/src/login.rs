@@ -10,10 +10,15 @@ use serde_json::Value;
 
 /// Address of the subscription server. `replaced` (the `QUOTALINE_API`
 /// variable) swaps in a test server, and only one on this machine: the
-/// request carries the login token.
+/// request carries the login token. Nothing may follow the port: a `@`
+/// would turn the address before it into user info and name another host.
 fn api(replaced: Option<String>) -> String {
     replaced
-        .filter(|address| address.starts_with("http://127.0.0.1:"))
+        .filter(|address| {
+            address
+                .strip_prefix("http://127.0.0.1:")
+                .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+        })
         .unwrap_or_else(|| "https://api.anthropic.com".into())
 }
 
