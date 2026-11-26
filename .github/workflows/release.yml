@@ -26,7 +26,14 @@ jobs:
       # nosemgrep: github-actions-mutable-action-tag
       - uses: actions/checkout@v7
         with:
+          # all branches, to find the tagged commit on main
+          fetch-depth: 0
           persist-credentials: false
+      # The marketplace serves the plugins from the default branch, not from
+      # the tag: a tag off main would publish a quotaline whose plugins
+      # nobody gets
+      - name: The tag is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "$GITHUB_REF_NAME is not on main"; exit 1; }
       - name: The tag is the version everywhere
         run: |
           want="${GITHUB_REF_NAME#v}"
