@@ -426,6 +426,45 @@ fn anchors_are_the_ones_github_gives() {
     assert_eq!(anchors("# a\n```\n# b\n```\n## C d"), ["a", "c-d"]);
 }
 
+/// The archives the release workflow builds, as the READMEs name them:
+/// `quotaline-<version>-<target>.tar.gz`, or `.zip` on Windows.
+fn release_archives() -> Vec<String> {
+    let mut found: Vec<String> = read(".github/workflows/release.yml")
+        .lines()
+        .filter_map(|line| {
+            let target = line.split("target: ").nth(1)?.split([' ', '}']).next()?;
+            let kind = if line.contains("os: windows") {
+                "zip"
+            } else {
+                "tar.gz"
+            };
+            Some(format!("quotaline-<version>-{target}.{kind}"))
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+/// A reader picks the archive from the READMEs' table: it must list every
+/// archive a release carries, and nothing else.
+#[test]
+fn readmes_name_the_archives_a_release_carries() {
+    let built = release_archives();
+    assert!(!built.is_empty(), "release.yml builds no archive");
+    for readme in ["README.md", "README.ru.md"] {
+        let text = read(readme);
+        let mut named: Vec<String> = text
+            .match_indices("quotaline-<version>-")
+            .map(|(at, _)| {
+                let rest = &text[at..];
+                rest[..rest.find('`').unwrap_or(rest.len())].to_owned()
+            })
+            .collect();
+        named.sort();
+        assert_eq!(named, built, "{readme} against release.yml");
+    }
+}
+
 #[test]
 fn the_home_check_tells_a_real_user_from_a_sample_one() {
     assert_eq!(real_home("at /Users/jane/project", "/Users/"), Some("jane"));

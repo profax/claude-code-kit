@@ -44,16 +44,66 @@ in your tmux, try adding `set -g mouse on` to `~/.tmux.conf` and running
 
 ### Install quotaline
 
-1. Download the archive for your system from
-   [Releases](https://github.com/profax/claude-code-kit/releases), unpack it,
-   and put `quotaline` where you keep programs, such as `~/.local/bin`.
-2. Run `quotaline --setup`. On its own, `quotaline` prints its help.
+1. Download the archive for your system and processor from
+   [Releases](https://github.com/profax/claude-code-kit/releases):
 
-It shows the change it is about to make to the Claude Code settings, asks, and
-keeps a copy of the file as it was:
+   | System | Processor | Archive |
+   |---|---|---|
+   | macOS | Apple silicon (M1 and later) | `quotaline-<version>-aarch64-apple-darwin.tar.gz` |
+   | macOS | Intel | `quotaline-<version>-x86_64-apple-darwin.tar.gz` |
+   | Linux, WSL | x86-64 (Intel or AMD) | `quotaline-<version>-x86_64-unknown-linux-musl.tar.gz` |
+   | Linux, WSL | Arm | `quotaline-<version>-aarch64-unknown-linux-musl.tar.gz` |
+   | Windows | x86-64 (Intel or AMD) | `quotaline-<version>-x86_64-pc-windows-msvc.zip` |
+
+   On a Mac, the Apple menu > About This Mac names the chip: Apple M1 or later
+   is Apple silicon. On Linux and WSL, `uname -m` prints `x86_64` or
+   `aarch64`.
+
+2. Unpack it and put the program in a folder for programs.
+
+   On macOS, Linux and WSL, run this in a terminal:
+
+   ```
+   cd ~/Downloads
+   tar -xzf quotaline-*.tar.gz
+   mkdir -p ~/.local/bin
+   mv quotaline-*/quotaline ~/.local/bin/
+   ```
+
+   If the browser has unpacked the archive already, skip the `tar` line.
+   Under WSL, a browser in Windows saves to the Windows Downloads folder, so
+   start with `cd /mnt/c/Users/you/Downloads`, with your Windows user name in
+   place of `you`.
+
+   On Windows, right-click the archive in File Explorer, choose Extract All,
+   and move `quotaline.exe` from the unpacked folder to a folder whose path
+   has no spaces, such as `C:\Users\you\bin` (if your user name has a space,
+   use `C:\tools`).
+
+3. Run it by its full path with `--setup`:
+
+   ```
+   ~/.local/bin/quotaline --setup
+   ```
+
+   On Windows, run `C:\Users\you\bin\quotaline.exe --setup` in PowerShell.
+   The folder doesn't have to be on your `PATH`: `--setup` writes the full
+   path into the settings. On its own, `quotaline` prints its help.
+
+   macOS doesn't start a program downloaded with a browser until Apple has
+   checked it, and Apple hasn't checked quotaline. If macOS says it can't
+   verify `quotaline` and doesn't start it, remove the mark macOS put on the
+   file and run step 3 again:
+
+   ```
+   xattr -d com.apple.quarantine ~/.local/bin/quotaline
+   ```
+
+`--setup` shows the change it is about to make to the Claude Code settings,
+asks, and keeps a copy of the file as it was:
 
 ```
-$ quotaline --setup
+$ ~/.local/bin/quotaline --setup
 quotaline will add this to /Users/you/.claude/settings.json:
 
   "statusLine": {
@@ -71,11 +121,15 @@ Claude Code reloads its settings on its own: open sessions show the line without
 If the settings already name another program as the status line, quotaline
 leaves it alone and prints what to change by hand.
 
-To build from source instead (Rust 1.89 or later):
+Instead of steps 1 and 2, you can build quotaline from source (Rust 1.89 or
+later):
 
 ```
 cargo install --locked --git https://github.com/profax/claude-code-kit quotaline
 ```
+
+This puts it in `~/.cargo/bin`, so step 3 is `~/.cargo/bin/quotaline --setup`
+(`quotaline.exe` on Windows).
 
 <details>
 <summary>Set it up by hand</summary>
