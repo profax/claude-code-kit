@@ -35,9 +35,12 @@ They need Claude Code 2.1.325 or later.
 /plugin install quick-peek@claude-code-kit
 ```
 
-Then run `/tui fullscreen` once. A terminal reports the pointer only in the
-fullscreen interface, and both plugins work by hovering. In tmux you also need
-`set -g mouse on`.
+Then run `/tui fullscreen` once: Claude Code gets the mouse pointer from the
+terminal only in its fullscreen interface, and it keeps that setting.
+
+In tmux 3.7b hovering works with tmux's default settings. If it does nothing
+in your tmux, try adding `set -g mouse on` to `~/.tmux.conf` and running
+`tmux source-file ~/.tmux.conf`.
 
 ### Install quotaline
 
