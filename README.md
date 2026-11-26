@@ -198,9 +198,13 @@ it. The line reads `limits: no data` when Claude Code passed nothing to show
 and no session has stored any limits yet.
 
 All sessions on a machine share what they learn, so an idle session shows
-fresh numbers too, and a new one shows them before its first reply. A session
-billed by API key shows its cost and the day's total instead of limits. Both
-are Claude Code's estimate at list prices, not an invoice.
+fresh numbers too, and a new one shows them before its first reply.
+
+A session billed by API key shows its cost and, next to it, the day's total
+for all such sessions on the machine, as in `$0.50 · today $1.74`. The total
+is left out while it equals the session's cost. Both are Claude Code's
+estimates at list prices, not an invoice. If the machine also has a
+subscription login, the line shows that subscription's limits as well.
 
 ## What it reads, writes and sends
 
