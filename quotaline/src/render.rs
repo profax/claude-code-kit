@@ -192,11 +192,11 @@ mod tests {
         };
         // the week has reset
         let with_week = json!({"name": "Fable", "used_percentage": 64.0, "resets_at": null});
-        assert!(shown(with_week.clone(), 1000).is_empty());
-        assert!(shown(with_week, 5000).is_empty());
+        assert_eq!(shown(with_week.clone(), 1000), Vec::<String>::new());
+        assert_eq!(shown(with_week, 5000), Vec::<String>::new());
         // its own time has come, the week goes on
         let own = json!({"name": "Fable", "used_percentage": 64.0, "resets_at": 500});
-        assert!(shown(own, 600).is_empty());
+        assert_eq!(shown(own, 600), Vec::<String>::new());
     }
 
     #[test]
