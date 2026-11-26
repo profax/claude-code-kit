@@ -179,15 +179,24 @@ mod tests {
             line(json!({"name": "Fable", "used_percentage": 95.0, "resets_at": 4000})),
             format!("{} \x1b[31m95%\x1b[0m{}", grey("fable"), grey(" ↻ 1h 0m"))
         );
-        // the week has reset, and no new answer has come
-        assert_eq!(
+    }
+
+    #[test]
+    fn model_limit_after_its_reset_waits_for_the_server() {
+        // only the server knows a model's limit: 0% after the reset would be a guess
+        let shown = |fable: Value, now: i64| {
             scoped(
-                &json!({"seven_day": at(1000, 26.0),
-                "scoped": [{"name": "Fable", "used_percentage": 64.0, "resets_at": null}]}),
-                1000
-            ),
-            [format!("{} 0%", grey("fable"))]
-        );
+                &json!({"seven_day": at(1000, 26.0), "scoped": [fable]}),
+                now,
+            )
+        };
+        // the week has reset
+        let with_week = json!({"name": "Fable", "used_percentage": 64.0, "resets_at": null});
+        assert!(shown(with_week.clone(), 1000).is_empty());
+        assert!(shown(with_week, 5000).is_empty());
+        // its own time has come, the week goes on
+        let own = json!({"name": "Fable", "used_percentage": 64.0, "resets_at": 500});
+        assert!(shown(own, 600).is_empty());
     }
 
     #[test]
