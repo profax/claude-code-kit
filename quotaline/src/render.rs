@@ -33,7 +33,8 @@ pub fn window(name: &str, limit: &Value, now: i64, timed: bool) -> Option<String
 
 /// Weekly limits of single models, each under the model's name. The time is
 /// shown only when it is the limit's own: a limit without one resets
-/// together with the week.
+/// together with the week. A limit that has reset is left out: only the
+/// server reports the next one, and 0% until then would be a guess.
 pub fn scoped(kept: &Value, now: i64) -> Vec<String> {
     let week = kept["seven_day"]["resets_at"].as_i64();
     kept["scoped"]
@@ -43,6 +44,9 @@ pub fn scoped(kept: &Value, now: i64) -> Vec<String> {
         .filter_map(|limit| {
             let name = limit["name"].as_str()?.to_lowercase();
             let own = limit["resets_at"].as_i64();
+            if own.or(week).is_some_and(|reset| reset <= now) {
+                return None;
+            }
             let timed = own.zip(week).is_some_and(|(o, w)| o.abs_diff(w) > 60);
             let mut limit = limit.clone();
             limit["resets_at"] = json!(own.or(week));
