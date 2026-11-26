@@ -239,7 +239,8 @@ viewer or the file manager does nothing.
 ## Updates
 
 Claude Code doesn't update plugins from a third-party marketplace on its own.
-Turn that on in `/plugin`, under Marketplaces, or run:
+Turn that on in `/plugin`, on the Marketplaces tab, or run these in a
+terminal, outside Claude Code, and then restart Claude Code:
 
 ```
 claude plugin update image-preview@claude-code-kit

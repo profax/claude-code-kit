@@ -241,8 +241,9 @@ Claude Code по опубликованным ценам, а не счёт. Ес
 
 ## Обновления
 
-Плагины из стороннего набора Claude Code сам не обновляет. Включите
-обновление в `/plugin`, раздел Marketplaces, или выполните:
+Плагины из стороннего набора (marketplace) Claude Code сам не обновляет.
+Включите обновление в `/plugin`, на вкладке Marketplaces, или выполните эти
+команды в терминале, вне Claude Code, а затем перезапустите Claude Code:
 
 ```
 claude plugin update image-preview@claude-code-kit
