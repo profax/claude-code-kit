@@ -45,16 +45,22 @@ fn keychain() -> Option<String> {
     None
 }
 
+/// Claude Code's directory: `CLAUDE_CONFIG_DIR`, or `.claude` in the home.
+/// An empty variable counts as unset: it would point at whatever directory
+/// the program happens to run in.
+pub fn config_dir() -> Option<PathBuf> {
+    std::env::var_os("CLAUDE_CONFIG_DIR")
+        .filter(|dir| !dir.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| Some(std::env::home_dir()?.join(".claude")))
+}
+
 /// The subscription login token, or `None` without a subscription login. An
 /// expired token is neither returned nor refreshed: Claude Code refreshes it,
 /// and a second refresher would leave Claude Code signed out.
 pub fn token(now: i64) -> Option<String> {
-    let text = keychain().or_else(|| {
-        let dir = std::env::var_os("CLAUDE_CONFIG_DIR")
-            .map(PathBuf::from)
-            .or_else(|| Some(std::env::home_dir()?.join(".claude")))?;
-        fs::read_to_string(dir.join(".credentials.json")).ok()
-    })?;
+    let text =
+        keychain().or_else(|| fs::read_to_string(config_dir()?.join(".credentials.json")).ok())?;
     let login: Value = serde_json::from_str(&text).ok()?;
     let login = &login["claudeAiOauth"];
     if login["expiresAt"]

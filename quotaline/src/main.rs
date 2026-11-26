@@ -16,6 +16,7 @@
 mod limits;
 mod login;
 mod render;
+mod setup;
 mod spend;
 
 use std::fs;
@@ -49,6 +50,11 @@ enum Mode {
     Line,
     Version,
     Help,
+    /// Point Claude Code's settings at this program; `yes` writes without
+    /// asking.
+    Setup {
+        yes: bool,
+    },
 }
 
 const HELP: &str = "\
@@ -58,6 +64,8 @@ data on stdin.
 
 Usage:
   quotaline                 Print the status line (Claude Code runs this)
+  quotaline --setup         Add quotaline to Claude Code's settings
+  quotaline --setup --yes   The same, without asking first
   quotaline --version, -V   Print the version
   quotaline --help, -h      Print this help
 
@@ -70,10 +78,13 @@ fn mode(args: &[&str]) -> Result<Mode, String> {
         [] => Ok(Mode::Line),
         ["--version" | "-V"] => Ok(Mode::Version),
         ["--help" | "-h"] => Ok(Mode::Help),
+        ["--setup"] => Ok(Mode::Setup { yes: false }),
+        ["--setup", "--yes"] | ["--yes", "--setup"] => Ok(Mode::Setup { yes: true }),
+        ["--yes"] => Err("--yes works only with --setup".into()),
         _ => Err(
             match args
                 .iter()
-                .find(|arg| !["--version", "-V", "--help", "-h"].contains(arg))
+                .find(|arg| !["--version", "-V", "--help", "-h", "--setup", "--yes"].contains(arg))
             {
                 Some(arg) => format!("unknown argument: {arg}"),
                 None => format!("these arguments don't go together: {}", args.join(" ")),
@@ -92,6 +103,7 @@ fn main() -> ExitCode {
         Ok(Mode::Line) => line(),
         Ok(Mode::Version) => println!("quotaline {}", env!("CARGO_PKG_VERSION")),
         Ok(Mode::Help) => println!("quotaline {}\n\n{HELP}", env!("CARGO_PKG_VERSION")),
+        Ok(Mode::Setup { yes }) => return setup::run(yes),
         Err(problem) => {
             eprintln!("quotaline: {problem}\nRun 'quotaline --help' to see the options.");
             return ExitCode::from(2);
@@ -172,6 +184,12 @@ mod tests {
         assert_eq!(mode(&[]), Ok(Mode::Line));
         assert_eq!(mode(&["-V"]), Ok(Mode::Version));
         assert_eq!(mode(&["--help"]), Ok(Mode::Help));
+        assert_eq!(mode(&["--setup"]), Ok(Mode::Setup { yes: false }));
+        assert_eq!(mode(&["--yes", "--setup"]), Ok(Mode::Setup { yes: true }));
+        assert_eq!(
+            mode(&["--yes"]),
+            Err("--yes works only with --setup".into())
+        );
         assert_eq!(
             mode(&["--verbose"]),
             Err("unknown argument: --verbose".into())
