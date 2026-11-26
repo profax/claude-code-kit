@@ -297,7 +297,7 @@ pub fn run(yes: bool) -> ExitCode {
 
 fn setup(yes: bool) -> Result<(), String> {
     let path = login::config_dir()
-        .ok_or("Can't find your home directory. Set CLAUDE_CONFIG_DIR to Claude Code's settings directory and run again.")?
+        .ok_or("Can't find your home folder. Set CLAUDE_CONFIG_DIR to Claude Code's settings folder and run again.")?
         .join("settings.json");
     let shown = path.display();
     let exe = program().map_err(|e| format!("Can't find where quotaline is: {e}"))?;
