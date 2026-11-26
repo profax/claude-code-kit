@@ -364,6 +364,26 @@ fn login_is_looked_for_once_in_five_minutes() {
 }
 
 #[test]
+fn server_is_not_asked_when_the_store_cannot_remember_it() {
+    let (api, asked) = usage_server(&usage(37.0, 26.0, &[]));
+    // no store directory: a file stands where it would go
+    let home = Home::signed_in(&api, 3600);
+    let dir = home.store().parent().expect("store directory").to_owned();
+    fs::create_dir_all(dir.parent().expect("cache")).expect("cache");
+    fs::write(&dir, "").expect("a file in the way");
+    home.line(&fresh_session("a"));
+    home.line(&fresh_session("b"));
+    // no lock: a directory stands where it would go
+    let home = Home::signed_in(&api, 3600);
+    let dir = home.store().parent().expect("store directory").to_owned();
+    fs::create_dir_all(dir.join("limits.lock")).expect("a directory in the way");
+    home.line(&fresh_session("a"));
+    home.line(&fresh_session("b"));
+    let asked = asked.lock().expect("request log");
+    assert!(asked.is_empty(), "{asked:?}");
+}
+
+#[test]
 fn without_login_the_line_shows_what_the_session_gave() {
     let (api, asked) = usage_server(&usage(37.0, 26.0, &[("Fable", 64.0)]));
     let mut home = Home::new();
