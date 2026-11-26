@@ -248,6 +248,8 @@ For quotaline, download the new release and replace the file.
   the plugins stay out of the way and draw nothing.
 - On Windows over SSH, Claude Code turns the fullscreen interface off. Use a
   local terminal there.
+- quick-peek links the paths in a reply's paragraphs and lists. A path in a
+  table, a heading, a quote or a code block stays plain text.
 - The weekly limit of a single model, and the numbers before a session's
   first reply, come from a server endpoint that Claude Code uses but doesn't
   document. If it changes, the line falls back to what Claude Code reports.
