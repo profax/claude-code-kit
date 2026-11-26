@@ -171,11 +171,9 @@ fn line() {
     let parts: Vec<String> = render::context(&event)
         .into_iter()
         .chain(money)
-        .chain(
-            limits::WINDOWS
-                .iter()
-                .filter_map(|(window, name)| render::window(name, &kept[*window], now, true)),
-        )
+        .chain(limits::WINDOWS.iter().filter_map(|(window, name, length)| {
+            render::window(name, &kept[*window], now, true, *length)
+        }))
         .chain(render::scoped(&kept, now))
         .chain(render::model(&event))
         .collect();

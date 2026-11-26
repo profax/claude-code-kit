@@ -17,13 +17,15 @@ fn left(seconds: i64) -> String {
 }
 
 /// A limit window as a part of the line, or `None` without a percentage.
-/// `timed` tells whether to add the time left until the reset.
-pub fn window(name: &str, limit: &Value, now: i64, timed: bool) -> Option<String> {
+/// `timed` tells whether to add the time left until the reset. A window that
+/// has reset shows 0% until a session brings the next one, and nothing once
+/// `length` seconds have passed without one: the next window would have
+/// ended too, and the user may have left the subscription.
+pub fn window(name: &str, limit: &Value, now: i64, timed: bool, length: i64) -> Option<String> {
     let used = limit["used_percentage"].as_f64()?;
     let reset = limit["resets_at"].as_i64();
-    // the window has reset, and no response has brought the next one yet
-    if reset.is_some_and(|r| r <= now) {
-        return Some(format!("{} 0%", dim(name)));
+    if let Some(r) = reset.filter(|&r| r <= now) {
+        return (now.saturating_sub(r) < length).then(|| format!("{} 0%", dim(name)));
     }
     let reset = reset
         .filter(|_| timed)
@@ -50,7 +52,7 @@ pub fn scoped(kept: &Value, now: i64) -> Vec<String> {
             let timed = own.zip(week).is_some_and(|(o, w)| o.abs_diff(w) > 60);
             let mut limit = limit.clone();
             limit["resets_at"] = json!(own.or(week));
-            window(&name, &limit, now, timed)
+            window(&name, &limit, now, timed, 0)
         })
         .collect()
 }
@@ -133,18 +135,20 @@ mod tests {
     #[test]
     fn line_words() {
         assert_eq!(
-            window("5h", &at(1000, 10.4), 1000 - 3600, true).unwrap(),
+            window("5h", &at(1000, 10.4), 1000 - 3600, true, 18_000).unwrap(),
             "\x1b[38;5;243m5h\x1b[0m 10%\x1b[38;5;243m ↻ 1h 0m\x1b[0m"
         );
         assert_eq!(
-            window("week", &at(1000, 75.0), 0, true).unwrap(),
+            window("week", &at(1000, 75.0), 0, true, 604_800).unwrap(),
             "\x1b[38;5;243mweek\x1b[0m \x1b[33m75%\x1b[0m\x1b[38;5;243m ↻ 17m\x1b[0m"
         );
         assert_eq!(
-            window("5h", &at(1000, 50.0), 1000, true).unwrap(),
+            window("5h", &at(1000, 50.0), 1000, true, 18_000).unwrap(),
             "\x1b[38;5;243m5h\x1b[0m 0%"
         );
-        assert!(window("5h", &Value::Null, 0, true).is_none());
+        assert!(window("5h", &at(1000, 50.0), 1000 + 18_000, true, 18_000).is_none());
+        assert!(window("5h", &at(i64::MIN, 50.0), 1000, true, 18_000).is_none());
+        assert!(window("5h", &Value::Null, 0, true, 18_000).is_none());
         let ctx = |p: f64| context(&json!({"context_window": {"used_percentage": p}}));
         assert_eq!(ctx(34.4).unwrap(), "\x1b[38;5;243mctx\x1b[0m 34%");
         assert_eq!(

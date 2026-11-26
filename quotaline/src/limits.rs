@@ -17,9 +17,12 @@ use serde_json::{Value, json};
 
 use crate::login;
 
-/// Keys of the windows in Claude Code's `rate_limits` and their labels in
-/// the line.
-pub const WINDOWS: [(&str, &str); 2] = [("five_hour", "5h"), ("seven_day", "week")];
+/// Keys of the windows in Claude Code's `rate_limits`, their labels in the
+/// line and their lengths in seconds.
+pub const WINDOWS: [(&str, &str, i64); 2] = [
+    ("five_hour", "5h", 5 * 3600),
+    ("seven_day", "week", 7 * 86_400),
+];
 
 /// Seconds between requests to the server, across all sessions. The server
 /// counts requests and refuses frequent ones, and a model's weekly limit
@@ -47,7 +50,7 @@ fn window(used: &Value, reset: &Value) -> Option<Value> {
 /// from the answer does not apply to this subscription. Returns whether the
 /// answer had that list.
 fn absorb(kept: &mut Value, answer: &Value) -> bool {
-    for (name, _) in WINDOWS {
+    for (name, _, _) in WINDOWS {
         if let Some(fresh) = window(&answer[name]["utilization"], &answer[name]["resets_at"]) {
             kept[name] = fresh;
         }
@@ -148,14 +151,14 @@ fn remember(kept: &mut Value, event: &Value, now: i64) -> Seen {
 pub fn update(kept: &mut Value, event: &Value, now: i64, may_ask: bool) -> bool {
     let has_limits = WINDOWS
         .iter()
-        .any(|(window, _)| event["rate_limits"][window]["used_percentage"].is_number());
+        .any(|(window, _, _)| event["rate_limits"][window]["used_percentage"].is_number());
     // before the first API response there are no numbers to record
     let seen = if has_limits {
         remember(kept, event, now)
     } else {
         Seen::Same
     };
-    for (window, _) in WINDOWS {
+    for (window, _, _) in WINDOWS {
         let fresh = &event["rate_limits"][window];
         if fresh["used_percentage"].is_number() && newer(fresh, &kept[window], seen, now) {
             kept[window] = fresh.clone();
