@@ -9,4 +9,4 @@ open it.
 ```
 
 It needs the fullscreen interface (`/tui fullscreen`). Requirements and known
-limits are in the [claude-code-kit README](https://github.com/profax/claude-code-kit#quick-peek).
+limitations are in the [claude-code-kit README](https://github.com/profax/claude-code-kit#quick-peek).

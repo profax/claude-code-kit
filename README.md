@@ -175,7 +175,7 @@ claude plugin update quick-peek@claude-code-kit
 
 For quotaline, download the new release and replace the file.
 
-## Known limits
+## Known limitations
 
 - The fullscreen interface is a research preview in Claude Code. Without it
   the plugins stay out of the way and draw nothing.
