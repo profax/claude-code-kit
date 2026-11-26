@@ -601,6 +601,28 @@ fn extreme_times_still_give_a_line() {
 }
 
 #[test]
+fn window_that_has_reset_shows_zero_for_one_length_of_it() {
+    // nobody has used the subscription since: a user who has left it would
+    // see 0% in every session for as long as the store lives
+    let now = Timestamp::now().as_second();
+    let kept = |ago: i64| {
+        json!({
+            "five_hour": {"used_percentage": 40.0, "resets_at": now - 5 * 3600 - ago},
+            "seven_day": {"used_percentage": 50.0, "resets_at": now - 7 * 86_400 - ago},
+        })
+    };
+    let home = Home::new();
+    home.keep(&kept(-60));
+    assert_eq!(
+        home.line(&paid_session("a", 1.238)),
+        "$1.24 · 5h 0% · week 0% · Opus 5.5"
+    );
+    let home = Home::new();
+    home.keep(&kept(60));
+    assert_eq!(home.line(&paid_session("a", 1.238)), "$1.24 · Opus 5.5");
+}
+
+#[test]
 fn sessions_calling_at_once_lose_nothing() {
     let home = Home::new();
     std::thread::scope(|scope| {
