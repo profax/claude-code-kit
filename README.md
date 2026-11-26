@@ -121,6 +121,13 @@ limit with the time until each resets, the weekly limit of a single model if
 your plan has one, and the model with its effort level. Numbers turn yellow
 and then red as a limit runs out.
 
+After a reset, `5h` and `week` show 0% until a session brings the new numbers,
+for at most as long as the window lasts (five hours or a week), and then leave
+the line. A model's weekly limit leaves the line at its reset, and when
+requests to the server have failed for over an hour: only the server reports
+it. The line reads `limits: no data` when Claude Code passed nothing to show
+and no session has stored any limits yet.
+
 All sessions on a machine share what they learn, so an idle session shows
 fresh numbers too, and a new one shows them before its first reply. A session
 billed by API key shows its cost and the day's total instead of limits. Both
