@@ -7,8 +7,10 @@ Only the latest release gets fixes.
 ## What counts as a vulnerability
 
 quotaline reads the Claude Code login token to ask the subscription server
-for your limits. The plugins run programs on your machine to read a picture or
-to show a file in the file manager, with paths taken from the conversation.
+for your limits. The plugins run programs on your machine, with paths taken
+from the conversation: to read an image, to open it in the system viewer, to
+show a file in the file manager, and on Alt-click to open a file with its
+default program, which runs the file if it is a program.
 These count as vulnerabilities:
 
 - the token, or anything derived from it, written to a file or a log, or sent

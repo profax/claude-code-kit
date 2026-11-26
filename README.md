@@ -224,8 +224,10 @@ subscription login, the line shows that subscription's limits as well.
   ImageMagick, `sips` or PowerShell to read an image, and the system viewer
   when you click. On Windows and under WSL it also keeps the window's helper,
   `image-preview-popup-1.dll`, in the Windows temp folder.
-- `quick-peek` reads the size, the date and the first lines of the files a
-  reply names. It runs the file manager when you click.
+- `quick-peek` reads the size, the date and the lines its card shows of the
+  files a reply names. On a click it runs the file manager. On an Alt-click it
+  opens the file with its default program, which runs the file if it is a
+  program.
 
 The plugins send nothing over the network. When they pass a failure over,
 they write its cause to the Claude Code debug log.
