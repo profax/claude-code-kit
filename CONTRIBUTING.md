@@ -43,6 +43,11 @@ a plugin's `.claude-plugin/types/` when it loads the plugin in an interactive
 session: start `claude --plugin-dir plugins/image-preview --plugin-dir
 plugins/quick-peek` once, then run it. CI can't run this check.
 
+The quotaline tests in `quotaline/tests/line.rs` point the program at a test
+server with `QUOTALINE_API`. The request carries the login token, so the
+variable takes only `http://127.0.0.1:<port>`; with any other value the
+program asks the real server.
+
 `cargo test -p checks` tests the repository itself: it lists the tracked
 files with git and reads every commit message, so it needs a git clone. A
 shallow clone passes but checks only the commits it has, which is why CI
