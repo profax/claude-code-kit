@@ -384,6 +384,52 @@ fn server_is_not_asked_when_the_store_cannot_remember_it() {
 }
 
 #[test]
+fn model_limit_leaves_the_line_when_the_server_fails_for_an_hour() {
+    let now = Timestamp::now().as_second();
+    let reset = now + 3 * 86_400;
+    // the store as a good answer left it `answered` seconds ago; the last
+    // attempt to ask was five minutes ago
+    let kept = |answered: i64| {
+        json!({
+            "seven_day": {"used_percentage": 26.0, "resets_at": reset},
+            "scoped": [{"name": "Fable", "used_percentage": 64.0, "resets_at": reset}],
+            "asked_at": now - 301,
+            "answered_at": now - answered,
+            "sessions": {"idle": {"api_ms": 1000,
+                "rate_limits": event("idle", 1000, 26.0, reset)["rate_limits"]}},
+        })
+    };
+    let dead = "http://127.0.0.1:9";
+    // the server fails over an hour after its last good answer
+    let home = Home::signed_in(dead, 3600);
+    home.keep(&kept(3700));
+    let line = home.line(&fresh_session("a"));
+    assert!(!line.contains("fable"), "{line}");
+    // within the hour the last answer still stands
+    let home = Home::signed_in(dead, 3600);
+    home.keep(&kept(1000));
+    assert_eq!(percent(&home.line(&fresh_session("a")), "fable"), "64%");
+    // an idle session asks nobody: nothing has failed
+    let home = Home::signed_in(dead, 3600);
+    home.keep(&kept(8000));
+    let line = home.line(&event("idle", 1000, 26.0, reset));
+    assert_eq!(percent(&line, "fable"), "64%", "{line}");
+    // without a login nothing is asked either
+    let home = Home::new();
+    home.keep(&kept(8000));
+    assert_eq!(percent(&home.line(&fresh_session("a")), "fable"), "64%");
+    // a good answer is remembered
+    let (api, _) = usage_server(&usage(37.0, 26.0, &[("Fable", 64.0)]));
+    let home = Home::signed_in(&api, 3600);
+    home.keep(&kept(8000));
+    home.line(&fresh_session("a"));
+    let stored: Value =
+        serde_json::from_str(&fs::read_to_string(home.store()).expect("store")).expect("JSON");
+    assert_eq!(stored["answered_at"], stored["asked_at"], "{stored}");
+    assert!(stored["asked_at"].as_i64() >= Some(now), "{stored}");
+}
+
+#[test]
 fn without_login_the_line_shows_what_the_session_gave() {
     let (api, asked) = usage_server(&usage(37.0, 26.0, &[("Fable", 64.0)]));
     let mut home = Home::new();
