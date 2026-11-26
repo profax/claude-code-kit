@@ -208,7 +208,7 @@ test('each path carries a card the terminal reveals over it', async ($, on) => {
   await startSession($)
   const ui = await reply($, `Listo: ${VIDEO}`)
   expect(await ui.find({ key: 'card:0:0' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /borrador\.mp4 · 12\.0 MB · .* ago · click: show in folder/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /borrador\.mp4 · 12\.0 MB · \d+[smhd] ago · click: show in folder/ })).toBeDefined()
 })
 
 type Shown = { first: number; last: number; of: number }
@@ -277,7 +277,7 @@ test('the card of a file of code shows its first lines, coloured by the engine',
   const ui = await reply($, 'Mira src/app.ts y el vídeo ' + VIDEO)
   expect(await ui.find({ type: 'Code' })).toMatchObject({ props: { source: CODE.trimEnd(), path: SOURCE, startLine: 1 } })
   expect(await ui.find({ key: 'card:0:0' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /app\.ts · \d+ B · .* ago · click: show in folder/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /app\.ts · \d+ B · \d+[smhd] ago · click: show in folder/ })).toBeDefined()
 })
 
 

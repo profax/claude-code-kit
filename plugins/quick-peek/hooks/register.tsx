@@ -216,8 +216,8 @@ const sizeOf = (bytes: number) =>
 
 const ago = (ms: number) => {
   const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000))
-  const [value, unit] = seconds < 60 ? [seconds, 's'] : seconds < 3600 ? [Math.round(seconds / 60), 'min'] : seconds < 86400 ? [Math.round(seconds / 3600), 'h'] : [Math.round(seconds / 86400), 'd']
-  return `${value} ${unit} ago`
+  const [value, unit] = seconds < 60 ? [seconds, 's'] : seconds < 3600 ? [Math.round(seconds / 60), 'm'] : seconds < 86400 ? [Math.round(seconds / 3600), 'h'] : [Math.round(seconds / 86400), 'd']
+  return `${value}${unit} ago`
 }
 
 function cardOf (target: Target) {
