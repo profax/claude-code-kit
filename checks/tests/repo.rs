@@ -246,6 +246,11 @@ fn one_lowest_claude_code_version_everywhere() {
         );
         named.extend(versions.into_iter().map(|v| (readme.to_owned(), v)));
     }
+    for plugin in plugins() {
+        let readme = format!("{plugin}/README.md");
+        let versions = versions_after(&read(&readme), "Claude Code ");
+        named.extend(versions.into_iter().map(|v| (readme.clone(), v)));
+    }
     let wrong: Vec<&(String, String)> = named
         .iter()
         .filter(|(file, version)| {
