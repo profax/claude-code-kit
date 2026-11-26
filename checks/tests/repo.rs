@@ -45,17 +45,35 @@ fn git(args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
-/// Tracked files with their text; binary files are skipped. This file is
-/// left out: it has to spell what it looks for.
+/// Tracked files that are not UTF-8 text, and so are not searched. Text in
+/// another encoding would pass every check unread: a file that fails to
+/// decode is an error unless it is here.
+const BINARY: &[&str] = &[];
+
+/// Tracked files with their text. This file is left out: it has to spell
+/// what it looks for. A file deleted from the working tree has no text to
+/// get into a commit.
 fn tracked() -> Vec<(String, String)> {
-    let files: Vec<(String, String)> = git(&["ls-files", "-z"])
-        .split('\0')
-        .filter(|name| !name.is_empty() && *name != "checks/tests/repo.rs")
-        .filter_map(|name| {
-            let text = std::fs::read_to_string(root().join(name)).ok()?;
-            Some((name.to_owned(), text))
-        })
-        .collect();
+    let mut files = vec![];
+    let mut unread = vec![];
+    for name in git(&["ls-files", "-z"]).split('\0') {
+        if name.is_empty() || name == "checks/tests/repo.rs" {
+            continue;
+        }
+        match std::fs::read(root().join(name)) {
+            Ok(bytes) => match String::from_utf8(bytes) {
+                Ok(text) => files.push((name.to_owned(), text)),
+                Err(_) if BINARY.contains(&name) => {}
+                Err(error) => unread.push(format!("{name}: {error}")),
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => unread.push(format!("{name}: {error}")),
+        }
+    }
+    assert!(
+        unread.is_empty(),
+        "files the checks can't read: {unread:#?}"
+    );
     assert!(files.len() > 10, "the check found next to nothing to read");
     files
 }
