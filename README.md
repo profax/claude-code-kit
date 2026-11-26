@@ -150,7 +150,7 @@ Windows write the path with forward slashes, such as
 
 ## image-preview
 
-Paste an image and a `[Image #N]` chip appears above the prompt. Hover it to
+Paste an image and an `[Image #N]` chip appears above the prompt. Hover it to
 see the picture; click to open it in the system viewer. The same works on the
 prompts you already sent.
 
@@ -166,7 +166,7 @@ On Windows and under WSL, a window by the pointer takes the place of the
 colored cells, inside tmux too. The window takes no focus and closes when the
 pointer leaves. Over SSH there is no window, and the cells stay.
 
-On Linux it needs ImageMagick (`magick` or `convert`) to read the picture.
+On Linux it needs ImageMagick (`magick` or `convert`) to read the image.
 macOS and Windows read it with what the system has, and use ImageMagick when
 it is installed.
 
@@ -216,7 +216,7 @@ are Claude Code's estimate at list prices, not an invoice.
   you agree.
 - `image-preview` reads the images Claude Code stored for the session and
   writes resized copies next to them, in the session's temp folder. It runs
-  ImageMagick, `sips` or PowerShell to read a picture, and the system viewer
+  ImageMagick, `sips` or PowerShell to read an image, and the system viewer
   when you click. On Windows and under WSL it also keeps the window's helper,
   `image-preview-popup-1.dll`, in the Windows temp folder.
 - `quick-peek` reads the size, the date and the first lines of the files a
