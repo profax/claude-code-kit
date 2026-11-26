@@ -36,7 +36,11 @@ jobs:
             got=$(jq -r .version "$plugin.claude-plugin/plugin.json")
             test "$got" = "$want" || { echo "$plugin is $got, the tag says $want"; exit 1; }
           done
-          grep -q "^## $want " CHANGELOG.md || { echo "CHANGELOG.md has no section for $want"; exit 1; }
+          # The release notes link to this section: it must not still say
+          # the version is to come
+          heading=$(awk -v want="## $want" '$0 == want || index($0, want " ") == 1 { print; exit }' CHANGELOG.md)
+          test -n "$heading" || { echo "CHANGELOG.md has no section for $want"; exit 1; }
+          case "$heading" in *[Uu]nreleased*) echo "CHANGELOG.md still calls $want unreleased: $heading"; exit 1 ;; esac
       - name: Draft the release
         run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "$GITHUB_REF_NAME" --notes "See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md)."
         env:
