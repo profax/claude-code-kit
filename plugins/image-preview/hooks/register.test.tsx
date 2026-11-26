@@ -55,7 +55,7 @@ const posix = (path: string) => path.replace(/^\/.*\/(?=[A-Za-z]:\\)/, '').repla
  */
 function world (
   on: On,
-  { files = { '1.png': 300 * 1024 }, draft = '', env = {}, platform = 'linux', missing = [], window = 'shown', readingMs = 0, pixels = [[RED, RED], [BLUE, BLUE]] }: { files?: Record<string, number>; platform?: 'linux' | 'macos' | 'windows'; draft?: string; env?: Record<string, string>; missing?: string[]; window?: 'shown' | 'error'; readingMs?: number; pixels?: number[][] } = {}
+  { files = { '1.png': 300 * 1024 }, draft = '', env = {}, platform = 'linux', missing = [], refusing = {}, window = 'shown', readingMs = 0, pixels = [[RED, RED], [BLUE, BLUE]] }: { files?: Record<string, number>; platform?: 'linux' | 'macos' | 'windows'; draft?: string; env?: Record<string, string>; missing?: string[]; refusing?: Record<string, string>; window?: 'shown' | 'error'; readingMs?: number; pixels?: number[][] } = {}
 ) {
   const isWindows = platform === 'windows'
   const temp = isWindows ? posix(`${WIN_TEMP}\\claude`) : '/tmp/claude-501'
@@ -88,6 +88,9 @@ function world (
     if (e.argv[0] === 'uname') return { value: { exitCode: 0, stdout: platform === 'macos' ? 'Darwin\n' : 'Linux\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     runs.push([...e.argv])
     runEnvs.push({ ...e.init?.env })
+    // A program in `refusing` runs and fails, printing its text.
+    const refusal = refusing[e.argv[0]!]
+    if (refusal !== undefined) return { value: { exitCode: 1, stdout: '', stderr: refusal, isStdoutTruncated: false, isStderrTruncated: false } }
     const stdout = e.argv[0] === 'id' ? '501\n' : e.argv[0] === 'wslpath' ? `${windowsPath(e.argv[2]!)}\n` : ''
     return { value: { exitCode: missing.includes(e.argv[0]!) ? 127 : 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
@@ -652,6 +655,34 @@ test('without ImageMagick the card says what it needs', async ($, on) => {
   const ui = await band($)
   await point(ui, 'chip:1')
   expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: needs ImageMagick to read it/ })).toBeDefined()
+})
+
+test('ImageMagick that runs and fails says what it said, not that it is missing', async ($, on) => {
+  const w = world(on, { draft: '[Image #1]', missing: ['convert'], refusing: { magick: "magick: no decode delegate for this image format `HEIC' @ error/constitute.c/ReadImage/746.\n" } })
+  await startSession($)
+  await w.clock.settle()
+  const ui = await band($)
+  await point(ui, 'chip:1')
+  expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: magick can't read it: no decode delegate for this image format `HEIC'/ })).toBeDefined()
+})
+
+test('a cache folder that can\'t be made is named as the cause', async ($, on) => {
+  const w = world(on, { draft: '[Image #1]', refusing: { mkdir: `mkdir: ${FOLDER}/image-preview: Permission denied\n` } })
+  await startSession($)
+  await w.clock.settle()
+  const ui = await band($)
+  await point(ui, 'chip:1')
+  expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: can't create the cache folder: Permission denied/ })).toBeDefined()
+})
+
+test('a session whose image folder is not found says so, not that the image was never stored', async ($, on) => {
+  const w = world(on, { draft: '[Image #1]' })
+  w.session.id = 's-9'
+  await startSession($)
+  await w.clock.advance(5000)
+  const ui = await band($)
+  await point(ui, 'chip:1')
+  expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: can't find this session's image folder/ })).toBeDefined()
 })
 
 for (const [platform, program, file] of [['macos', 'open', `${FOLDER}/images/1.png`], ['windows', 'explorer.exe', `${WIN_FOLDER}\\images\\1.png`]] as const) {
