@@ -336,7 +336,7 @@ fn setup(yes: bool) -> Result<(), String> {
         }
         Plan::NotObject => {
             return Err(format!(
-                "{shown} isn't a JSON object, so quotaline left it alone. \
+                "{shown} isn't valid JSON or isn't a JSON object, so quotaline left it alone. \
                  Fix the file, or add this to it by hand:\n\n{wanted}"
             ));
         }

@@ -223,6 +223,9 @@ fn setup_leaves_a_file_that_is_no_json_object_alone() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(home.read(), "{\"model\": \"opus\",}");
     assert_eq!(home.backups(), Vec::<PathBuf>::new());
+    // a trailing comma is no JSON at all: the message must not call it
+    // merely the wrong kind of value
+    assert!(text(&out.stderr).contains("isn't valid JSON"), "{out:?}");
 }
 
 #[test]
