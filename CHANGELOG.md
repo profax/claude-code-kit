@@ -3,7 +3,7 @@
 Notable changes, newest first. One version covers the whole kit: quotaline
 and both plugins.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-26)
 
 First public release.
 
