@@ -161,7 +161,12 @@ fn line() {
     {
         // through a rename: another session never reads half a file
         let tmp = dir.join(format!("limits.json.{}", std::process::id()));
-        let _ = fs::write(&tmp, kept.to_string()).and_then(|()| fs::rename(&tmp, path));
+        if fs::write(&tmp, kept.to_string())
+            .and_then(|()| fs::rename(&tmp, path))
+            .is_err()
+        {
+            let _ = fs::remove_file(&tmp);
+        }
     }
     let money = if paid {
         spend::shown(&kept, &event)
