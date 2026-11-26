@@ -40,8 +40,10 @@ version lacks does not load there at all, so the tests must pass on it.
 
 `npm run typecheck` needs the type definitions that Claude Code writes into
 a plugin's `.claude-plugin/types/` when it loads the plugin in an interactive
-session: start `claude --plugin-dir plugins/image-preview --plugin-dir
-plugins/quick-peek` once, then run it. CI can't run this check.
+session: start `npx claude --plugin-dir plugins/image-preview --plugin-dir
+plugins/quick-peek` once, then run it. `npx` starts the Claude Code that
+`npm ci` installed, so the types are those of the version the plugins must
+load on. CI can't run this check.
 
 The quotaline tests in `quotaline/tests/line.rs` point the program at a test
 server with `QUOTALINE_API`. The request carries the login token, so the
