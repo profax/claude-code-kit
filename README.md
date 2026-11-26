@@ -113,7 +113,7 @@ quotaline will add this to /Users/you/.claude/settings.json:
     "refreshInterval": 60
   }
 
-Write it? [y/N] y
+Write it? [yes/no] yes
 Added the status line to /Users/you/.claude/settings.json.
 The previous file is saved as /Users/you/.claude/settings.json.20261201T101500Z.bak
 Claude Code reloads its settings on its own: open sessions show the line without a restart.

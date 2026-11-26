@@ -197,16 +197,25 @@ fn confirm(question: &str, yes: bool) -> Result<(), String> {
                     Run 'quotaline --setup --yes' to write without asking."
             .into());
     }
-    print!("{question} [y/N] ");
+    print!("{question} [yes/no] ");
     let _ = io::stdout().flush();
     let mut answer = String::new();
     let _ = io::stdin().lock().read_line(&mut answer);
-    let answer = answer.trim();
-    if answer.eq_ignore_ascii_case("y") || answer.eq_ignore_ascii_case("yes") {
+    if agrees(&answer) {
         Ok(())
     } else {
         Err("Nothing changed.".into())
     }
+}
+
+/// Whether `answer` says yes. Anything else means no. A reader of the
+/// Russian page may answer in Russian, and a keyboard layout left on turns
+/// one word into the other alphabet's letters: the Russian yes typed with
+/// the English layout is "lf", and "yes" typed with the Russian one is the
+/// last word of the list.
+fn agrees(answer: &str) -> bool {
+    const YES: [&str; 5] = ["y", "yes", "\u{434}\u{430}", "lf", "\u{43d}\u{443}\u{44b}"];
+    YES.contains(&answer.trim().to_lowercase().as_str())
 }
 
 /// A new file at `path` that no one else can open first, with the
@@ -384,6 +393,38 @@ fn setup(yes: bool) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn yes_is_understood_in_either_layout() {
+        for answer in [
+            "y",
+            "Y",
+            "yes",
+            "YES\n",
+            " yes ",
+            "\u{434}\u{430}",
+            "\u{414}\u{430}\n",
+            "lf",
+            "\u{43d}\u{443}\u{44b}",
+            "\u{41d}\u{423}\u{42b}",
+        ] {
+            assert!(agrees(answer), "{answer:?}");
+        }
+        for answer in [
+            "",
+            "\n",
+            "n",
+            "no",
+            "\u{43d}\u{435}\u{442}",
+            "ytn",
+            "\u{442}\u{449}",
+            "yes please",
+            "\u{43d}",
+            "\u{434}",
+        ] {
+            assert!(!agrees(answer), "{answer:?}");
+        }
+    }
 
     const ME: &str = "/home/user/.local/bin/quotaline";
 

@@ -334,7 +334,7 @@ fn readme_setup_sample_is_what_setup_prints() {
             command.ends_with("quotaline --setup"),
             "{readme}: {command}"
         );
-        let shown = without_backup_time(&shown.replace("Write it? [y/N] y\n", ""));
+        let shown = without_backup_time(&shown.replace("Write it? [yes/no] yes\n", ""));
         assert_eq!(shown, printed, "{readme}");
     }
 }
