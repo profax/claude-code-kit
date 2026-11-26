@@ -271,7 +271,7 @@ test('after a /clear the rows that filled the screen are gone, and the card open
   expect(await cardRows(ui)).toEqual({ top: 1, bottom: 9, lines: 7 })
 })
 
-test('the card of a file of code shows its first lines, coloured by the engine', async ($, on) => {
+test('the card of a file of code shows its first lines, colored by the engine', async ($, on) => {
   world(on)
   await startSession($)
   const ui = await reply($, 'Mira src/app.ts y el vídeo ' + VIDEO)
