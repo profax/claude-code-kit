@@ -22,9 +22,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: npm ci --no-fund --no-audit
-      # npm runs no install scripts unasked, and without this one the `claude`
-      # wrapper has no binary behind it
+      # npm 11 still runs a package's install scripts, but warns that it will
+      # stop running those not allowed by name. Claude Code's puts the native
+      # binary behind the `claude` wrapper: it runs here by name, once, and no
+      # other install script runs at all
+      - run: npm ci --ignore-scripts --no-fund --no-audit
       - run: node node_modules/@anthropic-ai/claude-code/install.cjs
       - run: npx claude --version
       - run: npm run validate

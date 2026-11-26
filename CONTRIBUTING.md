@@ -15,7 +15,7 @@ first so we can agree on the approach before you write it.
 Run these before you push. CI runs the same ones.
 
 ```
-npm ci
+npm ci --ignore-scripts
 node node_modules/@anthropic-ai/claude-code/install.cjs
 npm run validate
 npm test
