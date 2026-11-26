@@ -27,7 +27,8 @@ The parts don't depend on each other. Install the ones you want.
 
 ### Install the plugins
 
-They need Claude Code 2.1.325 or later.
+They need Claude Code 2.1.325 or later. On Linux, image-preview also needs
+ImageMagick.
 
 ```
 /plugin marketplace add profax/claude-code-kit
@@ -167,8 +168,8 @@ colored cells, inside tmux too. The window takes no focus and closes when the
 pointer leaves. Over SSH there is no window, and the cells stay.
 
 On Linux it needs ImageMagick (`magick` or `convert`) to read the image.
-macOS and Windows read it with what the system has, and use ImageMagick when
-it is installed.
+macOS, Windows and WSL read it with what the system has, and use ImageMagick
+when it is installed.
 
 ## quick-peek
 

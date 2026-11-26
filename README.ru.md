@@ -27,7 +27,8 @@
 
 ### Установка плагинов
 
-Нужен Claude Code 2.1.325 или новее.
+Нужен Claude Code 2.1.325 или новее. В Linux плагину image-preview нужен ещё
+ImageMagick.
 
 ```
 /plugin marketplace add profax/claude-code-kit
@@ -168,8 +169,8 @@ Windows путь пишется с прямыми косыми, например
 указателя, в tmux тоже. Окно не забирает фокус и закрывается, когда указатель
 уходит. По SSH окна нет, и остаются клетки.
 
-В Linux для чтения картинки нужен ImageMagick (`magick` или `convert`). macOS
-и Windows читают её средствами системы, а ImageMagick берут, когда он
+В Linux для чтения картинки нужен ImageMagick (`magick` или `convert`). macOS,
+Windows и WSL читают её средствами системы, а ImageMagick берут, когда он
 установлен.
 
 ## quick-peek
