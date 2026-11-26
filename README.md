@@ -187,8 +187,8 @@ ctx 34% · 5h 21% ↻ 4h 2m · week 62% ↻ 2d 4h 42m · fable 65% · Opus 5.5 m
 
 From left to right: how full the context is, the five-hour and the weekly
 limit with the time until each resets, the weekly limit of a single model if
-your plan has one, and the model with its effort level. Numbers turn yellow
-and then red as a limit runs out.
+your plan has one, and the model with its effort level, plus `fast` while
+fast mode is on. Numbers turn yellow and then red as a limit runs out.
 
 After a reset, `5h` and `week` show 0% until a session brings the new numbers,
 for at most as long as the window lasts (five hours or a week), and then leave
