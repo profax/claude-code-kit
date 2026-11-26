@@ -66,7 +66,7 @@ Added the status line to /Users/you/.claude/settings.json.
 Собрать из исходного кода (Rust 1.89 или новее):
 
 ```
-cargo install --git https://github.com/profax/claude-code-kit quotaline
+cargo install --locked --git https://github.com/profax/claude-code-kit quotaline
 ```
 
 <details>

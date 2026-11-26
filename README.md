@@ -65,7 +65,7 @@ what to change by hand.
 To build from source instead (Rust 1.89 or later):
 
 ```
-cargo install --git https://github.com/profax/claude-code-kit quotaline
+cargo install --locked --git https://github.com/profax/claude-code-kit quotaline
 ```
 
 <details>
