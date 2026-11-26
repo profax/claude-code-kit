@@ -82,6 +82,15 @@ jobs:
       - if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo build --release --locked -p quotaline --target "$TARGET"
+      # CI tests other builds than these. Each one runs on its own runner:
+      # musl on Linux of the same CPU, and x86_64 macOS on the Arm runner
+      # through Rosetta
+      - name: The build starts and is the tagged version
+        run: |
+          program="target/$TARGET/release/quotaline"
+          if [ "$RUNNER_OS" = Windows ]; then program="$program.exe"; fi
+          got=$("$program" --version)
+          test "$got" = "quotaline ${GITHUB_REF_NAME#v}" || { echo "the build says '$got', the tag is $GITHUB_REF_NAME"; exit 1; }
       - name: Pack with its checksum
         run: |
           name="quotaline-${GITHUB_REF_NAME#v}-$TARGET"
