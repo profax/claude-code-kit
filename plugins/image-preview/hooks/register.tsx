@@ -26,6 +26,7 @@ const hosting = atom({ plugin: 'image-preview', key: 'hosting' } as const, false
 
 const TOKEN = /\[Image #(\d+)\]/g
 const NOT_STORED = 'not stored in this session'
+const NO_FOLDER = "can't find this session's image folder"
 // A cell is painted from eight dots across at most: cells need no more than 800 pixels.
 const SOURCE_PIXELS = 800
 const MAX_COLUMNS = 160
@@ -271,11 +272,21 @@ async function reading ($: Engine, name: Tool, file: string, dir: string, out: s
   return { argv: [name, file, ...(size ? ['-resize', size] : []), `${format === 'bmp' ? 'BMP3' : 'PNG'}:${join(dir, out)}`] }
 }
 
+type Run = { exitCode: number; stderr: string }
+/** What a program that failed said: its first line on stderr less its own name, or its exit code. */
+const saidBy = (name: string, result: Run) =>
+  result.stderr.split(/\r?\n/).map(line => line.trim()).find(Boolean)?.replace(new RegExp(`^${name}: `), '').slice(0, 200) || `exit code ${result.exitCode}`
+/** A shell's code for a program it could not find. */
+const NOT_FOUND = 127
+
 /**
  * Writes `file` as `format` to `out` in the folder `dir`, with the first program that manages it,
  * its longer side `side` (`n` stretched or shrunk to it, `n>` only shrunk; without it, as it is).
+ * True once one has; otherwise the first program that ran and failed, with what it said, or
+ * undefined when none could be run.
  */
 async function convert ($: Engine, file: string, dir: string, out: string, format: 'bmp' | 'png', side?: string) {
+  let refused: { name: Tool; said: string } | undefined
   for (const name of tool ? [tool] : TOOLS[system]) {
     const { argv, env } = await reading($, name, file, dir, out, format, side) as { argv: string[]; env?: Record<string, string> }
     const result = await $.process.run(argv, env && { env }).catch(() => undefined)
@@ -283,21 +294,32 @@ async function convert ($: Engine, file: string, dir: string, out: string, forma
       tool = name
       return true
     }
+    if (result && result.exitCode !== NOT_FOUND) refused ??= { name, said: saidBy(name, result) }
   }
-  return false
+  return refused
 }
 
 async function makeFolder ($: Engine, path: string) {
   if (madeFolder === path) return
+  const fail = (why: string) => { throw new Error(`can't create the cache folder: ${why}`) }
   // Windows has no `mkdir` program: writing a file makes its folders.
-  if (system === 'windows') await $.fs.write(join(path, '.keep'), '')
-  else await $.process.run(['mkdir', '-p', path])
+  if (system === 'windows') {
+    await $.fs.write(join(path, '.keep'), '').catch(error => fail(error instanceof Error ? error.message : String(error)))
+  } else {
+    const result = await $.process.run(['mkdir', '-p', path])
+    // mkdir ends its line with the reason, after the path: the card has no room for the path.
+    if (result.exitCode !== 0) fail(saidBy('mkdir', result).split(': ').at(-1)!)
+  }
   madeFolder = path
 }
 
 async function decode ($: Engine, file: string, dir: string, out: string): Promise<Pixels> {
-  if (!(await convert($, file, dir, out, 'bmp', String(SOURCE_PIXELS)))) {
-    throw new Error(system === 'linux' ? 'needs ImageMagick to read it' : 'the system cannot read it; ImageMagick reads more formats')
+  const done = await convert($, file, dir, out, 'bmp', String(SOURCE_PIXELS))
+  if (done !== true) {
+    // ImageMagick is named only where it is missing: a system reader runs only after it.
+    throw new Error(!done ? 'needs ImageMagick to read it'
+      : done.name === 'magick' || done.name === 'convert' ? `${done.name} can't read it: ${done.said}`
+        : "the system can't read it; ImageMagick reads more formats")
   }
   const { base64 } = await $.fs.read(join(dir, out), { as: 'bytes' })
   return parseBmp(Uint8Array.fromBase64(base64))
@@ -305,11 +327,11 @@ async function decode ($: Engine, file: string, dir: string, out: string): Promi
 
 async function pngOf ($: Engine, file: string, dir: string, out: string) {
   if (file.endsWith('.png')) return file
-  return (await convert($, file, dir, out, 'png')) ? join(dir, out) : undefined
+  return (await convert($, file, dir, out, 'png')) === true ? join(dir, out) : undefined
 }
 
 async function viewOf ($: Engine, file: string, dir: string, out: string) {
-  if (!(await convert($, file, dir, out, 'png', `${VIEW_PIXELS}>`)) || (await $.fs.stat(join(dir, out))).size > VIEW_BYTES) return undefined
+  if ((await convert($, file, dir, out, 'png', `${VIEW_PIXELS}>`)) !== true || (await $.fs.stat(join(dir, out))).size > VIEW_BYTES) return undefined
   return (await $.fs.read(join(dir, out), { as: 'bytes' })).base64
 }
 
@@ -331,7 +353,7 @@ async function load ($: Engine, id: number) {
       await $.clock.sleep(WAIT_MS)
       file = await fileOf($, id)
     }
-    if (!file) throw new Error(NOT_STORED)
+    if (!file) throw new Error((await sessionFolder($)) ? NOT_STORED : NO_FOLDER)
 
     const cache = join((await sessionFolder($))!, 'image-preview')
     await makeFolder($, cache)

@@ -323,7 +323,7 @@ test('after /clear the new session reads its images again', async ($, on) => {
   expect(await ui.find({ key: 'image-1' })).toBeUndefined()
   await point(ui, 'chip:1', 'leave')
   await point(ui, 'chip:1')
-  expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: not stored in this session/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: can't find this session's image folder/ })).toBeDefined()
 })
 
 test('over a transcript that fills the rows, a chip opens its card over the lowest row, the band left alone', async ($, on) => {
