@@ -195,22 +195,34 @@ mod tests {
 
     #[test]
     fn arguments_ask_for_one_mode() {
-        assert_eq!(mode(&[]), Ok(Mode::Line));
-        assert_eq!(mode(&["-V"]), Ok(Mode::Version));
-        assert_eq!(mode(&["--help"]), Ok(Mode::Help));
-        assert_eq!(mode(&["--setup"]), Ok(Mode::Setup { yes: false }));
-        assert_eq!(mode(&["--yes", "--setup"]), Ok(Mode::Setup { yes: true }));
+        assert_eq!(mode(&[], false), Ok(Mode::Line));
+        assert_eq!(mode(&["-V"], false), Ok(Mode::Version));
+        assert_eq!(mode(&["--help"], false), Ok(Mode::Help));
+        assert_eq!(mode(&["--setup"], false), Ok(Mode::Setup { yes: false }));
         assert_eq!(
-            mode(&["--yes"]),
+            mode(&["--yes", "--setup"], false),
+            Ok(Mode::Setup { yes: true })
+        );
+        assert_eq!(
+            mode(&["--yes"], false),
             Err("--yes works only with --setup".into())
         );
         assert_eq!(
-            mode(&["--verbose"]),
+            mode(&["--verbose"], false),
             Err("unknown argument: --verbose".into())
         );
         assert_eq!(
-            mode(&["--help", "--version"]),
+            mode(&["--help", "--version"], false),
             Err("these arguments don't go together: --help --version".into())
         );
+    }
+
+    #[test]
+    fn bare_command_in_a_terminal_prints_the_help() {
+        // Claude Code always pipes the session's data: a terminal means a
+        // person, who would wait on input that never comes
+        assert_eq!(mode(&[], true), Ok(Mode::Help));
+        assert_eq!(mode(&["-V"], true), Ok(Mode::Version));
+        assert_eq!(mode(&["--setup"], true), Ok(Mode::Setup { yes: false }));
     }
 }
