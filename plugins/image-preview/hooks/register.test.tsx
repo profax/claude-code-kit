@@ -62,7 +62,8 @@ function world (
   const project = isWindows ? WIN_PROJECT : '-project-app'
   const root = isWindows ? 'C:\\project\\app' : '/project/app'
   const folder = `${temp}/${project}/s-1`
-  const box = { text: draft }
+  // `error`, when set, is what reading the box fails with.
+  const box: { text: string; error?: string } = { text: draft }
   const session = { id: 's-1' }
   const clock = mock.clock(on, { now: 0 })
   mock.env(on, { TERM_PROGRAM: 'WarpTerminal', ...(isWindows && { OS: 'Windows_NT', TEMP: WIN_TEMP }), ...env })
@@ -75,7 +76,7 @@ function world (
   on('session.id', () => ({ value: session.id }))
   on('session.root', () => ({ value: root }))
   on('session.cwd', () => ({ value: root }))
-  on('prompt.read', () => ({ value: { text: box.text, cursor: box.text.length } }))
+  on('prompt.read', () => (box.error !== undefined ? { deny: box.error } : { value: { text: box.text, cursor: box.text.length } }))
   on('process.run', async ($, e) => {
     // A slow machine takes seconds to start PowerShell from WSL.
     if (readingMs > 0 && e.argv[0] === 'powershell.exe') await clock.sleep(readingMs)
@@ -130,7 +131,12 @@ function world (
     const { Box } = $.ui.resolve(e)
     return <Box key="engine" />
   })
-  return { clock, runs, runEnvs, box, session, windows }
+  const logs: { text: string; to: string }[] = []
+  on('ui.log', ($, e) => {
+    logs.push({ text: e.text, to: e.to })
+    return { value: undefined }
+  })
+  return { clock, runs, runEnvs, box, session, windows, logs }
 }
 
 type Drawn = RenderElement & { children?: Drawn[]; props?: { key?: string } }
@@ -244,6 +250,14 @@ test('an image pasted while the session runs shows within half a second', async 
   await w.clock.advance(500)
   const ui = await band($)
   expect(await ui.find({ key: 'chip:1' })).toBeDefined()
+})
+
+test('a poll of the prompt box that keeps failing puts its cause in the debug log once', async ($, on) => {
+  const w = world(on)
+  await startSession($)
+  w.box.error = 'the box is gone'
+  await w.clock.advance(2000)
+  expect(w.logs.filter(line => line.text.includes('the box is gone'))).toEqual([{ text: expect.stringContaining('the box is gone'), to: 'debug' }])
 })
 
 test('off fullscreen, with no pointer to hover, the band is left as it was', async ($, on) => {

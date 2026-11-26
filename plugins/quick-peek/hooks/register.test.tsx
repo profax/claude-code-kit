@@ -20,10 +20,11 @@ const CODE = ['import { run } from \'./run\'', '', '// Starts it', 'export async
 const SCREEN = { columns: 60, rows: 40, isFullscreen: true }
 
 /**
- * Everything beneath the mod: the session, the files that are there, the programs it runs (those in
- * `failing` exit 1), and what the engine draws.
+ * Everything beneath the mod: the session (its folder lost when `cwdError` is given), the files that
+ * are there, the programs it runs (those in `failing` exit 1), what the engine draws, and the lines
+ * the mod logs.
  */
-function world (on: On, { env = {}, cwd, failing = [], platform = 'linux' }: { env?: Record<string, string>; cwd?: string; failing?: string[]; platform?: 'linux' | 'macos' | 'windows' | 'wsl' } = {}) {
+function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'linux' }: { env?: Record<string, string>; cwd?: string; cwdError?: string; failing?: string[]; platform?: 'linux' | 'macos' | 'windows' | 'wsl' } = {}) {
   const clock = mock.clock(on, { now: 0 })
   const isWindows = platform === 'windows'
   // Windows names the home folder in USERPROFILE and the system in OS; it has no HOME.
@@ -34,7 +35,7 @@ function world (on: On, { env = {}, cwd, failing = [], platform = 'linux' }: { e
   const root = isWindows ? WIN_ROOT : '/project/app'
   const runs: string[][] = []
   on('session.start', ($, e) => ({ cwd: e.cwd }))
-  on('session.cwd', () => ({ value: cwd ?? root }))
+  on('session.cwd', () => (cwdError !== undefined ? { deny: cwdError } : { value: cwd ?? root }))
   on('session.root', () => ({ value: root }))
   on('process.run', ($, e) => {
     // `uname` only tells the mod which system it is on; Windows has none.
@@ -60,7 +61,12 @@ function world (on: On, { env = {}, cwd, failing = [], platform = 'linux' }: { e
     const { Box } = $.ui.resolve(e)
     return <Box key="engine" />
   })
-  return { clock, runs }
+  const logs: { text: string; to: string }[] = []
+  on('ui.log', ($, e) => {
+    logs.push({ text: e.text, to: e.to })
+    return { value: undefined }
+  })
+  return { clock, runs, logs }
 }
 
 const startSession = ($: Engine, cwd = '/project/app') => $.session.start({ cwd, surface: 'terminal', isInteractive: true })
@@ -132,6 +138,15 @@ test('after a `cd` into a folder of the project, a relative path leads from ther
   expect(await ui.find({ key: 'path:0:0' })).toMatchObject({ props: { props: { label: 'src/app.ts', path: SOURCE } } })
   expect(await ui.find({ key: 'path:1:0' })).toMatchObject({ props: { props: { label: 'app.ts', path: SOURCE } } })
   expect(await ui.find({ key: 'path:2:0' })).toMatchObject({ props: { props: { label: 'README.md', path: README } } })
+})
+
+test('a reply the mod fails to read is the engine\'s, and the cause goes to the debug log once', async ($, on) => {
+  const w = world(on, { cwdError: 'the session has no folder' })
+  await startSession($)
+  const ui = await reply($, `Mira ${VIDEO}`)
+  await ui.redraw({ text: `Mira ${VIDEO}`, isFirstOfReply: true })
+  expect(await ui.find({ key: 'engine' })).toBeDefined()
+  expect(w.logs.filter(line => line.text.includes('the session has no folder'))).toEqual([{ text: expect.stringContaining('the session has no folder'), to: 'debug' }])
 })
 
 test('a reply naming no path that is there is the engine\'s, and so is one off fullscreen', async ($, on) => {
