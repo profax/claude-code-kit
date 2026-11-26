@@ -271,3 +271,70 @@ fn setup_writes_through_a_link_and_keeps_permissions() {
         .count();
     assert_eq!(beside, 1);
 }
+
+/// `text` with the time in a backup's name, as in `settings.json.20261126T123605Z.bak`,
+/// written as `<time>`.
+#[cfg(unix)]
+fn without_backup_time(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find("settings.json.") {
+        let (before, after) = rest.split_at(at + "settings.json.".len());
+        out.push_str(before);
+        let stamp = after.find(".bak").filter(|&end| {
+            end >= 16
+                && after[..end]
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        });
+        match stamp {
+            Some(end) => {
+                out.push_str("<time>");
+                rest = &after[end..];
+            }
+            None => rest = after,
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The READMEs show what `--setup` prints for a program in `~/.local/bin`
+/// and a settings file that exists. Their sample is the program's own output,
+/// less the answer typed at the prompt.
+#[cfg(unix)]
+#[test]
+fn readme_setup_sample_is_what_setup_prints() {
+    let home = Home::new();
+    home.write("{}");
+    let bin = home.0.join(".local/bin");
+    fs::create_dir_all(&bin).expect("bin folder");
+    let program = bin.join("quotaline");
+    fs::copy(env!("CARGO_BIN_EXE_quotaline"), &program).expect("program");
+    let out = Command::new(&program)
+        .args(["--setup", "--yes"])
+        .env("HOME", &home.0)
+        .env_remove("CLAUDE_CONFIG_DIR")
+        .stdin(Stdio::null())
+        .output()
+        .expect("the program runs");
+    assert!(out.status.success(), "{out:?}");
+    let printed =
+        without_backup_time(&text(&out.stdout).replace(&*home.0.to_string_lossy(), "/Users/you"));
+    for readme in ["README.md", "README.ru.md"] {
+        let file = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join(readme);
+        let file = fs::read_to_string(&file).expect("README");
+        let start = file.find("```\n$ ").expect("the README has the sample") + 4;
+        let sample = &file[start..];
+        let sample = &sample[..sample.find("```").expect("the sample ends")];
+        let (command, shown) = sample.split_once('\n').expect("the sample has output");
+        assert!(
+            command.ends_with("quotaline --setup"),
+            "{readme}: {command}"
+        );
+        let shown = without_backup_time(&shown.replace("Write it? [y/N] y\n", ""));
+        assert_eq!(shown, printed, "{readme}");
+    }
+}

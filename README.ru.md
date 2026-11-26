@@ -66,11 +66,12 @@ quotaline will add this to /Users/you/.claude/settings.json:
 
 Write it? [y/N] y
 Added the status line to /Users/you/.claude/settings.json.
+The previous file is saved as /Users/you/.claude/settings.json.20261201T101500Z.bak
+Claude Code reloads its settings on its own: open sessions show the line without a restart.
 ```
 
-Открытые сессии подхватят строку без перезапуска. Если в настройках строкой
-состояния уже названа другая программа, quotaline её не тронет и напечатает,
-что поменять вручную.
+Если в настройках строкой состояния уже названа другая программа, quotaline
+её не тронет и напечатает, что поменять вручную.
 
 Собрать из исходного кода (Rust 1.89 или новее):
 
