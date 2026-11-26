@@ -184,6 +184,11 @@ For quotaline, download the new release and replace the file.
 - The weekly limit of a single model, and the numbers before a session's
   first reply, come from a server endpoint that Claude Code uses but doesn't
   document. If it changes, the line falls back to what Claude Code reports.
+- On macOS, Claude Code keeps the login of a profile set by
+  `CLAUDE_CONFIG_DIR` in the keychain under a name quotaline doesn't look for.
+  In such a profile quotaline reads only `.credentials.json` in that folder.
+  Without that file the line gets no numbers from the server: no weekly limit
+  of a single model, and no limits before a session's first reply.
 
 ## Development
 

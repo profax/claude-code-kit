@@ -22,9 +22,9 @@ fn api(replaced: Option<String>) -> String {
         .unwrap_or_else(|| "https://api.anthropic.com".into())
 }
 
-/// The login record from the macOS keychain, where Claude Code keeps it. The
-/// user's keychain lives in their home: a home without one (tests) has no
-/// record to ask for.
+/// The login record of Claude Code's default profile from the macOS
+/// keychain, where Claude Code keeps it. The user's keychain lives in their
+/// home: a home without one (tests) has no record to ask for.
 #[cfg(target_os = "macos")]
 fn keychain() -> Option<String> {
     if !std::env::home_dir()?.join("Library/Keychains").is_dir() {
@@ -50,22 +50,36 @@ fn keychain() -> Option<String> {
     None
 }
 
-/// Claude Code's directory: `CLAUDE_CONFIG_DIR`, or `.claude` in the home.
-/// An empty variable counts as unset: it would point at whatever directory
-/// the program happens to run in.
-pub fn config_dir() -> Option<PathBuf> {
+/// The directory of a Claude Code profile other than the default one:
+/// `CLAUDE_CONFIG_DIR`. An empty variable counts as unset, as it does for
+/// Claude Code: it would point at whatever directory the program happens to
+/// run in.
+fn profile_dir() -> Option<PathBuf> {
     std::env::var_os("CLAUDE_CONFIG_DIR")
         .filter(|dir| !dir.is_empty())
         .map(PathBuf::from)
-        .or_else(|| Some(std::env::home_dir()?.join(".claude")))
+}
+
+/// Claude Code's directory: `CLAUDE_CONFIG_DIR`, or `.claude` in the home.
+pub fn config_dir() -> Option<PathBuf> {
+    profile_dir().or_else(|| Some(std::env::home_dir()?.join(".claude")))
 }
 
 /// The subscription login token, or `None` without a subscription login. An
 /// expired token is neither returned nor refreshed: Claude Code refreshes it,
 /// and a second refresher would leave Claude Code signed out.
+///
+/// A profile of its own keeps its login in the keychain under another entry,
+/// one quotaline doesn't look for. The default entry then holds another
+/// login, whose limits are not this profile's, so only the profile's
+/// `.credentials.json` counts.
 pub fn token(now: i64) -> Option<String> {
-    let text =
-        keychain().or_else(|| fs::read_to_string(config_dir()?.join(".credentials.json")).ok())?;
+    let file = || fs::read_to_string(config_dir()?.join(".credentials.json")).ok();
+    let text = if profile_dir().is_some() {
+        file()
+    } else {
+        keychain().or_else(file)
+    }?;
     let login: Value = serde_json::from_str(&text).ok()?;
     let login = &login["claudeAiOauth"];
     if login["expiresAt"]
