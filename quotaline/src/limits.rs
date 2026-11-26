@@ -139,16 +139,14 @@ pub fn update(kept: &mut Value, event: &Value, now: i64) -> bool {
         }
     }
     // A new session and a working one ask; an idle one makes do with what
-    // the others have brought
+    // the others have brought. The attempt counts even without a login:
+    // looking for one starts a program on macOS.
     let due = kept["asked_at"]
         .as_i64()
         .is_none_or(|at| now.saturating_sub(at) >= ASK_EVERY);
-    if (!has_limits || seen != Seen::Same)
-        && due
-        && let Some(token) = login::token(now)
-    {
+    if (!has_limits || seen != Seen::Same) && due {
         kept["asked_at"] = json!(now);
-        if let Some(answer) = login::ask(&token) {
+        if let Some(answer) = login::token(now).and_then(|token| login::ask(&token)) {
             absorb(kept, &answer);
         }
     }

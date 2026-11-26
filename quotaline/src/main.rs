@@ -10,7 +10,7 @@
 //!   reports them (`used_percentage`, `resets_at` in epoch seconds);
 //! - `scoped`: weekly limits of single models, from the subscription server;
 //! - `sessions`: the last reading of each session, to tell fresh from stale;
-//! - `asked_at`: when the server was last asked;
+//! - `asked_at`: when a session last looked for the login to ask the server;
 //! - `spend`: the day's total for sessions billed by API key.
 
 mod limits;
