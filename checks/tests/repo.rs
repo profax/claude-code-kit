@@ -9,12 +9,16 @@ use std::process::Command;
 /// The only files written in Russian.
 const RUSSIAN: &[&str] = &["README.ru.md"];
 
-/// Cyrillic that belongs where it is: `(file, text)`. Test data for prompts
-/// typed in Russian, where a letter's width decides the column of a chip.
-const CYRILLIC_DATA: &[(&str, &str)] = &[(
-    "plugins/image-preview/hooks/register.test.tsx",
-    "что за цвета тут",
-)];
+/// Cyrillic that belongs where it is: `(file, text)`. The link to the Russian
+/// README, and test data for prompts typed in Russian, where a letter's width
+/// decides the column of a chip.
+const CYRILLIC_DATA: &[(&str, &str)] = &[
+    ("README.md", "Русский"),
+    (
+        "plugins/image-preview/hooks/register.test.tsx",
+        "что за цвета тут",
+    ),
+];
 
 /// Home folders the examples and the test data are allowed to name.
 const SAMPLE_USERS: &[&str] = &["ana", "you", "user", "john", "John", "runner", "Shared"];
