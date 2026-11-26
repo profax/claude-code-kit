@@ -136,7 +136,7 @@ This puts it in `~/.cargo/bin`, so step 3 is `~/.cargo/bin/quotaline --setup`
 <summary>Set it up by hand</summary>
 
 Add this to `~/.claude/settings.json`, with the full path to the program. On
-Windows write the path with forward slashes, such as
+Windows write the path with forward slashes (`/`), such as
 `C:/Users/you/bin/quotaline.exe`: both Git Bash and PowerShell run it that way.
 
 ```json
