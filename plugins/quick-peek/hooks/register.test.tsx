@@ -16,6 +16,10 @@ const WIN_ROOT = 'C:\\project\\app'
 const WIN_VIDEO = 'C:\\Users\\ana\\videos\\borrador.mp4'
 const WIN_README = 'C:\\project\\app\\README.md'
 const WIN_SOURCE = 'C:\\project\\app\\src\\app.ts'
+const SCRIPT = '/Users/ana/bin/deploy.command'
+const BINARY = '/project/app/target/release/app'
+const WIN_SETUP = 'C:\\Users\\ana\\setup.exe'
+const ENV = '/project/app/.env'
 const CODE = ['import { run } from \'./run\'', '', '// Starts it', 'export async function start (port: number) {', '  const server = await run(port)', '  return server', '}', ''].join('\n')
 const SCREEN = { columns: 60, rows: 40, isFullscreen: true }
 
@@ -30,8 +34,8 @@ function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'lin
   // Windows names the home folder in USERPROFILE and the system in OS; it has no HOME.
   mock.env(on, { ...(isWindows ? { USERPROFILE: WIN_HOME, OS: 'Windows_NT' } : { HOME: '/Users/ana' }), ...(platform === 'wsl' && { WSL_DISTRO_NAME: 'Ubuntu' }), ...env })
   const there: Record<string, 'file' | 'dir'> = isWindows
-    ? { [WIN_VIDEO]: 'file', [WIN_README]: 'file', [WIN_SOURCE]: 'file' }
-    : { [VIDEO]: 'file', [FOLDER]: 'dir', [README]: 'file', [SOURCE]: 'file' }
+    ? { [WIN_VIDEO]: 'file', [WIN_README]: 'file', [WIN_SOURCE]: 'file', [WIN_SETUP]: 'file' }
+    : { [VIDEO]: 'file', [FOLDER]: 'dir', [README]: 'file', [SOURCE]: 'file', [SCRIPT]: 'file', [BINARY]: 'file', [ENV]: 'file' }
   const root = isWindows ? WIN_ROOT : '/project/app'
   const runs: string[][] = []
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -54,9 +58,14 @@ function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'lin
     const path = asked(e.path)
     const kind = there[path]
     if (!kind) return { deny: `ENOENT: ${path}` }
-    return { value: { kind, size: path === SOURCE || path === WIN_SOURCE ? CODE.length : 12 * 1024 * 1024, mtimeMs: 0, isLink: false } }
+    return { value: { kind, size: path === SOURCE || path === WIN_SOURCE ? CODE.length : path === ENV ? 29 : 12 * 1024 * 1024, mtimeMs: 0, isLink: false } }
   })
-  on('fs.read', ($, e) => (asked(e.path) === SOURCE || asked(e.path) === WIN_SOURCE ? { value: CODE } : { deny: `ENOENT: ${e.path}` }))
+  on('fs.read', ($, e) => {
+    const path = asked(e.path)
+    if (path === SOURCE || path === WIN_SOURCE) return { value: CODE }
+    if (path === ENV) return { value: 'API_TOKEN=sk-live-0123456789\n' }
+    return { deny: `ENOENT: ${e.path}` }
+  })
   on('ui.render', ($, e) => {
     const { Box } = $.ui.resolve(e)
     return <Box key="engine" />
@@ -89,7 +98,60 @@ test('a path with a line names it; a file of code or text is known by its name',
   expect(lineOf('src/app.ts:42')).toBe(42)
   expect(lineOf('src/app.ts:42:7.')).toBe(42)
   expect(lineOf('src/app.ts')).toBeUndefined()
-  expect(['a.ts', 'b.tsx', 'c.html', 'd.css', 'e.json', 'f.md', 'Dockerfile', '.env.local', 'g.nix', 'h.kdl', 'i.svg', 'j.mp4', 'Makefile.bak'].map(isText)).toEqual([true, true, true, true, true, true, true, true, true, true, false, false, false])
+  expect(['a.ts', 'b.tsx', 'c.html', 'd.css', 'e.json', 'f.md', 'Dockerfile', '.env.example', 'g.nix', 'h.kdl', 'i.svg', 'j.mp4', 'Makefile.bak'].map(isText)).toEqual([true, true, true, true, true, true, true, true, true, true, false, false, false])
+})
+
+test('a file that keeps secrets by its name shows no lines; its sample does', () => {
+  expect(['.env', '.env.local', '.ENV.production', '.npmrc', '.pypirc', '.netrc', '.git-credentials', '.pgpass'].map(isText)).toEqual(Array(8).fill(false))
+  expect(['.env.example', '.env.sample', '.env.template', '.env.dist'].map(isText)).toEqual([true, true, true, true])
+})
+
+test('the card of a .env file names it and shows none of its lines', async ($, on) => {
+  world(on)
+  await startSession($)
+  const ui = await reply($, `Put the key in ${ENV}`)
+  expect(await ui.find({ key: 'path:0:0' })).toMatchObject({ props: { props: { label: ENV, path: ENV } } })
+  expect(await ui.find({ type: 'Text', text: / \.env · 29 B · / })).toBeDefined()
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
+  expect(await ui.find({ text: /sk-live/ })).toBeUndefined()
+})
+
+/** Clicks the first link of `ui`, with Alt or without. */
+async function click (ui: Awaited<ReturnType<typeof reply>>, alt: boolean) {
+  await ui.pointer({ type: 'down', x: 2, y: 0, button: 'left', alt, in: 'path:0:0' })
+  await ui.pointer({ type: 'up', x: 2, y: 0, button: 'left', alt, in: 'path:0:0' })
+}
+
+test('an alt-click on a program or a script shows it in its folder instead of running it', async ($, on) => {
+  const w = world(on, { platform: 'macos' })
+  await startSession($)
+  for (const path of [SCRIPT, BINARY]) {
+    const ui = await reply($, `Built: ${path}`)
+    await click(ui, true)
+    await w.clock.settle()
+    expect(w.runs).toContainEqual(['open', '-R', path])
+    expect(w.runs).not.toContainEqual(['open', path])
+    await ui.unmount()
+  }
+})
+
+test('on Windows an alt-click on an .exe selects it in Explorer', async ($, on) => {
+  const w = world(on, { platform: 'windows' })
+  await startSession($, WIN_ROOT)
+  const ui = await reply($, `Saved: \`${WIN_SETUP}\``)
+  await click(ui, true)
+  await w.clock.settle()
+  expect(w.runs).toEqual([['explorer.exe', '/select,', WIN_SETUP]])
+})
+
+test('on Linux an alt-click on a script selects it in the file manager', async ($, on) => {
+  const w = world(on)
+  await startSession($)
+  const ui = await reply($, `Built: ${SCRIPT}`)
+  await click(ui, true)
+  await w.clock.settle()
+  expect(w.runs.find(argv => argv[0] === 'dbus-send')).toContain(`array:string:file://${SCRIPT}`)
+  expect(w.runs.filter(argv => argv[0] === 'xdg-open')).toEqual([])
 })
 
 test('a preview shows the first lines, or those around the one named, the shared indent cut', () => {
