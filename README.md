@@ -39,7 +39,7 @@ fullscreen interface, and both plugins work by hovering. In tmux you also need
 1. Download the archive for your system from
    [Releases](https://github.com/profax/claude-code-kit/releases), unpack it,
    and put `quotaline` where you keep programs, such as `~/.local/bin`.
-2. Run `quotaline --setup`.
+2. Run `quotaline --setup`. On its own, `quotaline` prints its help.
 
 It shows the change it is about to make to the Claude Code settings, asks, and
 keeps a copy of the file as it was:

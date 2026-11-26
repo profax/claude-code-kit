@@ -40,7 +40,7 @@
    [Releases](https://github.com/profax/claude-code-kit/releases), распакуйте
    и положите `quotaline` туда, где держите программы, например в
    `~/.local/bin`.
-2. Выполните `quotaline --setup`.
+2. Выполните `quotaline --setup`. Без аргументов `quotaline` печатает справку.
 
 Программа покажет, что собирается изменить в настройках Claude Code, спросит
 согласия и сохранит копию прежнего файла:
