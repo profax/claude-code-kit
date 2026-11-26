@@ -4,6 +4,7 @@
 //! from the subscription server. The server here is a stub on 127.0.0.1 and
 //! the login is fake: no network is needed.
 
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{BufRead as _, BufReader, Write as _};
 use std::net::TcpListener;
@@ -47,14 +48,10 @@ impl Home {
     /// Puts a subscription login that expires in `expires` seconds where
     /// Claude Code keeps it.
     fn sign_in(&self, expires: i64) {
-        let login = json!({"claudeAiOauth": {
-            "accessToken": "test-token",
-            "expiresAt": (Timestamp::now().as_second() + expires) * 1000,
-        }});
         fs::create_dir_all(self.path().join(".claude")).expect("login directory");
         fs::write(
             self.path().join(".claude/.credentials.json"),
-            login.to_string(),
+            login("test-token", expires).to_string(),
         )
         .expect("login");
     }
@@ -82,6 +79,12 @@ impl Home {
 
     /// The line without colors after a call with `event`.
     fn line(&self, event: &Value) -> String {
+        self.line_with(event, &[])
+    }
+
+    /// The line without colors after a call with `event`, with `vars` set
+    /// on top of this home's variables.
+    fn line_with(&self, event: &Value, vars: &[(&str, &OsStr)]) -> String {
         let mut child = Command::new(env!("CARGO_BIN_EXE_quotaline"))
             .env("HOME", self.path())
             .env("USERPROFILE", self.path())
@@ -91,6 +94,7 @@ impl Home {
             .env_remove("CLAUDE_CONFIG_DIR")
             .env("no_proxy", "*")
             .env("NO_PROXY", "*")
+            .envs(vars.iter().copied())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -106,6 +110,15 @@ impl Home {
         assert!(out.status.success(), "{out:?}");
         plain(&String::from_utf8_lossy(&out.stdout))
     }
+}
+
+/// A subscription login with `token` that expires in `expires` seconds, as
+/// Claude Code keeps it.
+fn login(token: &str, expires: i64) -> Value {
+    json!({"claudeAiOauth": {
+        "accessToken": token,
+        "expiresAt": (Timestamp::now().as_second() + expires) * 1000,
+    }})
 }
 
 /// The text without color escape sequences.
@@ -349,6 +362,77 @@ fn expired_login_is_not_sent() {
     let home = Home::signed_in(&api, -60);
     assert_eq!(home.line(&fresh_session("a")), "limits: no data");
     assert!(asked.lock().expect("request log").is_empty());
+}
+
+/// A home with a stub server at `api` whose only login is the default
+/// profile's, `default-token`, in a stand-in for the macOS keychain: a
+/// `security` program that knows only the default entry, first on the
+/// returned PATH. The real keychain is never asked.
+#[cfg(target_os = "macos")]
+fn keychain_home(api: &str) -> (Home, std::ffi::OsString) {
+    use std::os::unix::fs::PermissionsExt as _;
+    let mut home = Home::new();
+    api.clone_into(&mut home.1);
+    fs::create_dir_all(home.path().join("Library/Keychains")).expect("keychain folder");
+    let bin = home.path().join("bin");
+    fs::create_dir_all(&bin).expect("bin folder");
+    let security = bin.join("security");
+    fs::write(
+        &security,
+        format!(
+            "#!/bin/sh\n\
+             [ \"$*\" = 'find-generic-password -s Claude Code-credentials -w' ] || exit 44\n\
+             echo '{}'\n",
+            login("default-token", 3600)
+        ),
+    )
+    .expect("security");
+    fs::set_permissions(&security, fs::Permissions::from_mode(0o755)).expect("security");
+    let mut path = bin.into_os_string();
+    path.push(":");
+    path.push(std::env::var_os("PATH").unwrap_or_default());
+    (home, path)
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn another_profile_never_takes_the_default_keychain_login() {
+    let (api, asked) = usage_server(&usage(37.0, 26.0, &[]));
+    // the default profile: its login is in the keychain
+    let (home, path) = keychain_home(&api);
+    let line = home.line_with(&fresh_session("a"), &[("PATH", &path)]);
+    assert_eq!(percent(&line, "5h"), "37%", "{line}");
+    // a profile of its own: Claude Code keeps its login under another
+    // keychain entry, and the default one belongs to another login
+    let (home, path) = keychain_home(&api);
+    let profile = home.path().join("profile");
+    fs::create_dir_all(&profile).expect("profile folder");
+    let vars = [
+        ("PATH", path.as_os_str()),
+        ("CLAUDE_CONFIG_DIR", profile.as_os_str()),
+    ];
+    assert_eq!(
+        home.line_with(&fresh_session("a"), &vars),
+        "limits: no data"
+    );
+    // the profile's own login file is the one that counts
+    let (home, path) = keychain_home(&api);
+    let profile = home.path().join("profile");
+    fs::create_dir_all(&profile).expect("profile folder");
+    let file = login("profile-token", 3600).to_string();
+    fs::write(profile.join(".credentials.json"), file).expect("login");
+    let vars = [
+        ("PATH", path.as_os_str()),
+        ("CLAUDE_CONFIG_DIR", profile.as_os_str()),
+    ];
+    let line = home.line_with(&fresh_session("a"), &vars);
+    assert_eq!(percent(&line, "5h"), "37%", "{line}");
+    let asked = asked.lock().expect("request log");
+    let sent: Vec<bool> = asked
+        .iter()
+        .map(|request| request.to_lowercase().contains("bearer profile-token"))
+        .collect();
+    assert_eq!(sent, [false, true], "{asked:?}");
 }
 
 #[test]
