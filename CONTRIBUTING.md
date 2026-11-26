@@ -75,6 +75,10 @@ session watches the folder and picks up your edits.
 
 ## Releasing
 
-Raise the version in `quotaline/Cargo.toml` and in both `plugin.json` files,
-add the section to `CHANGELOG.md`, and push the tag `v<version>`. The release
-workflow refuses a tag that disagrees with any of them.
+Raise the version in `quotaline/Cargo.toml`, `Cargo.lock` and both
+`plugin.json` files, and add the section to the top of `CHANGELOG.md`;
+`cargo test --workspace --locked` fails while any of them disagree. When you
+release, remove "(unreleased)" from the section's heading, tag a commit on
+`main` with `v<version>`, and push the tag. The release workflow refuses a
+tag that disagrees with the versions, a section still marked unreleased, and
+a tag off `main`: the marketplace serves the plugins from `main`.
