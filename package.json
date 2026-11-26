@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-kit",
+  "private": true,
+  "description": "Checks for the plugins, on the oldest Claude Code they support",
+  "scripts": {
+    "validate": "claude plugin validate --strict . && claude plugin validate --strict plugins/image-preview && claude plugin validate --strict plugins/quick-peek",
+    "test": "claude plugin test plugins/image-preview && claude plugin test plugins/quick-peek",
+    "typecheck": "tsc -p plugins/image-preview && tsc -p plugins/quick-peek"
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-code": "2.1.325",
+    "typescript": "7.0.2"
+  }
+}

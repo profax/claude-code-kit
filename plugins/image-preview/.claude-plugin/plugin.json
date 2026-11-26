@@ -1,0 +1,22 @@
+{
+  "name": "image-preview",
+  "version": "0.1.0",
+  "description": "Hover a pasted [Image #N] to see the picture, above the prompt while you write and on the prompts you sent.",
+  "license": "MIT",
+  "author": {
+    "name": "Oleg Smirnov",
+    "url": "https://github.com/profax"
+  },
+  "homepage": "https://github.com/profax/claude-code-kit#image-preview",
+  "repository": "https://github.com/profax/claude-code-kit",
+  "keywords": [
+    "terminal",
+    "preview",
+    "images",
+    "paste"
+  ],
+  "engines": {
+    "claude-code": ">=2.1.325"
+  },
+  "types": "./types/index.d.ts"
+}
