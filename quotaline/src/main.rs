@@ -137,7 +137,11 @@ fn line() {
     let lock = dir
         .as_ref()
         .and_then(|dir| fs::File::create(dir.join("limits.lock")).ok());
-    let locked = lock.as_ref().is_some_and(|lock| lock.lock().is_ok());
+    // Some file systems have no locks (a home on a network share): sessions
+    // may then lose each other's numbers, and the store still works
+    if let Some(lock) = &lock {
+        let _ = lock.lock();
+    }
     let path = dir.as_ref().map(|dir| dir.join("limits.json"));
     let mut kept: Value = path
         .as_ref()
@@ -148,8 +152,9 @@ fn line() {
     let now = Timestamp::now().as_second();
     let before = kept.clone();
     // A store that can't keep asked_at would let every refresh of every
-    // session ask the server
-    let has_limits = limits::update(&mut kept, &event, now, locked);
+    // session ask the server. The lock file tells: where it can be created,
+    // the store can be written
+    let has_limits = limits::update(&mut kept, &event, now, lock.is_some());
     // No subscription limits in the data of a session the store has never
     // seen with them: the session is billed by API key
     let paid = !has_limits
