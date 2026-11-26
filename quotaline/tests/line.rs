@@ -491,6 +491,32 @@ fn store_of_any_shape_still_gives_a_line() {
 }
 
 #[test]
+fn extreme_times_still_give_a_line() {
+    let reset = Timestamp::now().as_second() + 3 * 86_400;
+    for (asked, own, week_reset) in [
+        (i64::MIN, i64::MIN, i64::MAX),
+        (i64::MAX, i64::MAX, i64::MIN),
+        (i64::MIN, i64::MIN, 0),
+        (-1, i64::MAX, -1),
+    ] {
+        let home = Home::new();
+        home.keep(&json!({
+            "asked_at": asked,
+            "seven_day": {"used_percentage": 5.0, "resets_at": week_reset},
+            "scoped": [{"name": "Fable", "used_percentage": 64.0, "resets_at": own}],
+        }));
+        let line = home.line(&fresh_session("a"));
+        assert!(!line.contains('-'), "{line}");
+        let line = home.line(&event("b", 1000, 5.0, reset));
+        assert_eq!(week(&line), "5%", "{line}");
+        for at in [i64::MAX, i64::MIN] {
+            let line = home.line(&limits("c", 1000, (1.0, at), (5.0, at)));
+            assert!(!line.contains('-'), "{line}");
+        }
+    }
+}
+
+#[test]
 fn sessions_calling_at_once_lose_nothing() {
     let home = Home::new();
     std::thread::scope(|scope| {
