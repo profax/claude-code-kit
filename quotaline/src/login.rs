@@ -103,6 +103,20 @@ mod tests {
         assert_eq!(api(None), real);
         assert_eq!(api(Some("https://example.com".into())), real);
         assert_eq!(api(Some("http://127.0.0.1.example.com".into())), real);
+        // anything after the port can move the host elsewhere or is no port
+        for address in [
+            "http://127.0.0.1:1@evil.example/",
+            "http://127.0.0.1:8080/",
+            "http://127.0.0.1:8080/api",
+            "http://127.0.0.1:1#@evil.example",
+            "http://127.0.0.1:1?@evil.example",
+            "http://127.0.0.1:80\\@evil.example",
+            "http://127.0.0.1:",
+            "http://127.0.0.1:http",
+            "http://127.0.0.1:+80",
+        ] {
+            assert_eq!(api(Some(address.into())), real, "{address}");
+        }
         assert_eq!(
             api(Some("http://127.0.0.1:8080".into())),
             "http://127.0.0.1:8080"
