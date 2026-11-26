@@ -903,6 +903,8 @@ test('under WSL with no window to be had, the terminal draws the card, and the n
   await point(ui, 'chip:1', 'leave')
   await point(ui, 'chip:1')
   expect(w.windows).toHaveLength(1)
+  // Claude Code puts the plugin's name before the line itself.
+  expect(w.logs.filter(line => line.text.startsWith('no window ('))).toEqual([{ text: expect.stringContaining('the terminal draws the cards'), to: 'debug' }])
 })
 
 test('under WSL over SSH the window would open on another desktop: the terminal draws the card', async ($, on) => {

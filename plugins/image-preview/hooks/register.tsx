@@ -436,7 +436,8 @@ async function openWindow ($: Engine, id: number) {
   }
   if (popup === opening) popup = undefined
   if (isShown || !opening.isOpen) return
-  $.ui.log(`image-preview: no window (${said.replace(/\.\r?\n/g, '').trim().slice(0, 300) || 'the program could not start'}); the terminal draws the cards`, { to: 'debug' })
+  // Claude Code leads the line with the plugin's name.
+  $.ui.log(`no window (${said.replace(/\.\r?\n/g, '').trim().slice(0, 300) || 'the program could not start'}); the terminal draws the cards`, { to: 'debug' })
   windowed = false
   await change($, now => (now?.edge === 'window' ? placeFor(now.id, now.target) : now))
 }
