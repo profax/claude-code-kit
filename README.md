@@ -247,7 +247,9 @@ claude plugin update image-preview@claude-code-kit
 claude plugin update quick-peek@claude-code-kit
 ```
 
-For quotaline, download the new release and replace the file.
+For quotaline, repeat steps 1 and 2 of [Install quotaline](#install-quotaline)
+with the new release. The settings already point at the file, so step 3 isn't
+needed; on macOS, run its `xattr` command again.
 
 ## Known limitations
 

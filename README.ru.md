@@ -250,7 +250,10 @@ claude plugin update image-preview@claude-code-kit
 claude plugin update quick-peek@claude-code-kit
 ```
 
-Чтобы обновить quotaline, скачайте новый выпуск и замените файл.
+Чтобы обновить quotaline, повторите шаги 1 и 2 из раздела
+[Установка quotaline](#установка-quotaline) с новым выпуском. Настройки уже
+указывают на этот файл, поэтому шаг 3 не нужен; в macOS снова выполните
+команду `xattr` из него.
 
 ## Известные ограничения
 
