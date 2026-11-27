@@ -338,9 +338,28 @@ function follow ($: Engine, requestId: string) {
  */
 type Layout = { row: number; place: (spot: Spot) => Place; spots: Spot[] }
 
+/** `text` with spaces after it up to `width` cells. */
+const padded = (text: string, width: number) => text + ' '.repeat(Math.max(0, width - widthOf(text)))
+
+/**
+ * A file's lines from `first` on, numbered, every row written to `width`: the card lies over the
+ * transcript, which shows through each cell left unwritten. The numbers are drawn here, not by
+ * `Code`, to know how wide they are.
+ */
+function numbered ({ Box, Code, Text }: Ui, source: string, first: number, width: number, path: string) {
+  const lines = source.split('\n')
+  const digits = String(first + lines.length - 1).length
+  return (
+    <Box flexDirection="row">
+      <Text dimColor>{lines.map((_, i) => `${String(first + i).padStart(digits)} `).join('\n')}</Text>
+      <Code source={lines.map(line => padded(line, width - digits - 1)).join('\n')} path={path} wrap="truncate-end" />
+    </Box>
+  )
+}
+
 /** A paragraph's rows at `width`: text in its own style, each part of a path a `Client` of its own. */
 function drawRows (ui: Ui, rows: Row[], width: number, targets: Target[], parts: Map<number, number>, layout: Layout) {
-  const { Box, Client, Code, Link, Text } = ui
+  const { Box, Client, Link, Text } = ui
   return rows.map(row => {
     const above = layout.row++
     let column = 0
@@ -373,9 +392,9 @@ function drawRows (ui: Ui, rows: Row[], width: number, targets: Target[], parts:
           return (
             <Box key={`card:${run.link}:${part}`}>
               <Client key={`path:${run.link}:${part}`} module="./link.tsx" props={props} />
-              <Box position="absolute" top={place.top} left={left} width={cardWidth} flexDirection="column" display="none" hover={{ display: 'flex' }} {...(excerpt && { backgroundColor: 'inverseText' })}>
-                <Text inverse wrap="truncate-end">{card}</Text>
-                {excerpt && source !== undefined && <Code source={source} path={target.path} startLine={excerpt.first} wrap="truncate-end" />}
+              <Box position="absolute" top={place.top} left={left} width={cardWidth} flexDirection="column" display="none" hover={{ display: 'flex' }}>
+                <Text color="text" backgroundColor="subtle" wrap="truncate-end">{padded(card, cardWidth)}</Text>
+                {excerpt && source !== undefined && numbered(ui, source, excerpt.first, cardWidth, target.path)}
               </Box>
             </Box>
           )
