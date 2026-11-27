@@ -7,6 +7,10 @@ on:
   pull_request:
   # The release runs the same checks before it builds anything
   workflow_call:
+  # A new Claude Code release can break the plugins between pushes. A failed
+  # scheduled run emails the repository's owner
+  schedule:
+    - cron: "17 6 * * 1"
   # Rerun by hand, for a new Claude Code release or a runner that failed
   workflow_dispatch:
 
@@ -14,9 +18,14 @@ permissions:
   contents: read
 
 jobs:
-  # The plugins on the oldest Claude Code they promise to work on: the version
-  # pinned in package.json is the one `engines` names in each plugin.json
+  # The plugins on the oldest Claude Code they promise to work on, the version
+  # pinned in package.json that `engines` names in each plugin.json, and on the
+  # newest
   plugins:
+    strategy:
+      fail-fast: false
+      matrix:
+        claude-code: [pinned, latest]
     runs-on: ubuntu-latest
     # Actions from actions/* keep their tags; third-party ones are pinned by hash
     steps:
@@ -29,6 +38,9 @@ jobs:
       # binary behind the `claude` wrapper: it runs here by name, once, and no
       # other install script runs at all
       - run: npm ci --ignore-scripts --no-fund --no-audit
+      # The newest release can't come from the lockfile
+      - if: matrix.claude-code == 'latest'
+        run: npm install --no-save --ignore-scripts --no-fund --no-audit @anthropic-ai/claude-code@latest # zizmor: ignore[adhoc-packages]
       - run: node node_modules/@anthropic-ai/claude-code/install.cjs
       - run: npx claude --version
       - run: npm run validate

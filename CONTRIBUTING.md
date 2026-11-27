@@ -40,6 +40,7 @@ of date: a change to the dependencies or to a version comes with the
 `npm ci` installs the oldest Claude Code the plugins support, the version
 `engines` names in each `plugin.json`. A plugin that calls something this
 version lacks does not load there at all, so the tests must pass on it.
+CI runs them on the newest Claude Code too, at each push and weekly.
 
 `npm run typecheck` needs the type definitions that Claude Code writes into
 a plugin's `.claude-plugin/types/` when it loads the plugin in an interactive
