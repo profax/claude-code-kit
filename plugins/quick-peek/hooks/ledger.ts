@@ -2,6 +2,8 @@
 // is around a link in a reply for its card.
 import type { EventOf } from 'claude-code'
 
+import { BOTTOM_ROWS, HEADER_ROWS } from './screen'
+
 /** The transcript rows the plugin draws or notes. */
 export const TRANSCRIPT = ['UserMessage', 'AssistantMessage', 'ToolUse', 'ToolResult', 'ToolGroup', 'CommandOutput', 'TurnDuration', 'InfoNotice'] as const
 export type Transcript = Extract<EventOf['ui.render'], { component: (typeof TRANSCRIPT)[number], surface: 'terminal' }>
@@ -25,10 +27,7 @@ export type Place = { top: number; lines: number }
  */
 export type Spot = { above: number; lines: number }
 
-// Above the first transcript row is the logo; below the last, the prompt box with its hints and the
-// status line.
-const HEADER_ROWS = 5
-const BOTTOM_ROWS = 7
+// Below the last transcript row, at the least: the prompt box with its hints.
 const MIN_BOTTOM_ROWS = 4
 
 export class Ledger {

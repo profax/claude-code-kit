@@ -346,7 +346,7 @@ fn each_plugin_carries_the_license_notice() {
 /// Modules both plugins need. Each plugin installs as a folder of its own and
 /// can't import from the other, so each carries a copy, and a fix made in one
 /// copy must reach the other.
-const SHARED_MODULES: [&str; 2] = ["size.ts", "system.ts"];
+const SHARED_MODULES: [&str; 3] = ["screen.ts", "size.ts", "system.ts"];
 
 #[test]
 fn shared_modules_are_the_same_in_each_plugin() {

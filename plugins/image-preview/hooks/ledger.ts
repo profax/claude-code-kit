@@ -2,6 +2,7 @@
 // order, and where a card that floats over the rows can go.
 import type { EventOf } from 'claude-code'
 
+import { BOTTOM_ROWS, HEADER_ROWS } from './screen'
 import { idsIn } from './tokens'
 import type { Shown } from '../types'
 
@@ -19,10 +20,6 @@ type OnScreen = NonNullable<Row['props']['onScreen']>
  */
 type Noted = { component: Row['component']; seen: number; drawnAt: number; isBatch: boolean; onScreen: OnScreen | null | undefined; text?: string }
 
-// Below the transcript the screen holds the band, the prompt box and its hints; above the first
-// row, the logo.
-const BOTTOM_ROWS = 7
-const HEADER_ROWS = 4
 const MIN_CARD_ROWS = 6
 
 export class Ledger {
