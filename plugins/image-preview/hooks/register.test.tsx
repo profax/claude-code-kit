@@ -148,7 +148,7 @@ const running = async ($: Engine, clock: { advance: (ms: number) => Promise<void
   await startSession($)
   await clock.advance(1000)
 }
-const band = ($: Engine) => $.ui.mount({ plugin: 'image-preview', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+const band = ($: Engine) => $.ui.mount({ plugin: 'image-preview', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: SCREEN })
 const sent = ($: Engine, text: string, onScreen?: Shown, requestId = 'm-1') =>
   $.ui.mount({
     plugin: 'image-preview',
@@ -221,6 +221,24 @@ test('off fullscreen, with no pointer to hover, the band is left as it was', asy
   })
   expect(await ui.find({ key: 'engine' })).toBeDefined()
   expect(await ui.find({ key: 'chip:1' })).toBeUndefined()
+})
+
+test('where Claude Code has not said the screen is full, the band and the sent prompts are left as they were', async ($, on) => {
+  const w = world(on, { draft: '[Image #1]' })
+  await startSession($)
+  await w.clock.settle()
+  const ui = await $.ui.mount({ plugin: 'image-preview', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+  expect(await ui.find({ key: 'chip:1' })).toBeUndefined()
+  const message = await $.ui.mount({
+    plugin: 'image-preview',
+    surface: 'terminal',
+    component: 'UserMessage',
+    requestId: 'm-1',
+    props: { text: '[Image #1]', origin: { kind: 'composer' }, isExpanded: false }
+  })
+  await w.clock.settle()
+  expect(await message.find({ key: 'sent:1' })).toBeUndefined()
+  expect(await message.find({ key: 'token:1' })).toBeUndefined()
 })
 
 test('with no image in the prompt the band is left as it was', async ($, on) => {
