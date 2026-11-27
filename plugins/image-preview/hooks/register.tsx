@@ -54,6 +54,8 @@ const VIEW_BYTES = 2 * 1024 * 1024
 // nothing closes it.
 const WINDOW_SIZE = 800
 const WINDOW_LIFE = 120
+// How many pictures' pixels are kept: each takes megabytes, and an older one is read again.
+const KEPT = 8
 // What reads a picture, tried in this order: magick is ImageMagick 7 and convert ImageMagick 6
 // (Ubuntu has the latter, NixOS both; on Windows `convert` is a disk tool), then what the system
 // has of its own, sips on macOS and PowerShell with System.Drawing on Windows and under WSL.
@@ -348,6 +350,23 @@ async function viewOf ($: Engine, file: string, dir: string, out: string) {
   return (await $.fs.read(join(dir, out), { as: 'bytes' })).base64
 }
 
+/** Keeps the pixels of `id` as the latest, letting go of the oldest past `KEPT` and what was drawn from them. */
+function keep (id: number, pixels: Pixels) {
+  thumbs.delete(id)
+  thumbs.set(id, pixels)
+  for (const old of [...thumbs.keys()].slice(0, Math.max(0, thumbs.size - KEPT))) {
+    thumbs.delete(old)
+    views.delete(old)
+    for (const key of cells.keys()) if (key.startsWith(`${old}:`)) cells.delete(key)
+  }
+}
+
+/** Reads the pixels of a picture that was read once and let go, before its card is drawn. */
+async function reread ($: Engine, id: number) {
+  const picture = (await read($, pictures))[id]
+  if (picture && !('error' in picture) && !thumbs.has(id)) void load($, id)
+}
+
 /** Reads the image `id` once; whatever is drawn waiting for it is drawn again. */
 async function load ($: Engine, id: number) {
   if (thumbs.has(id) || loading.has(id) || failed.has(id)) return
@@ -381,7 +400,7 @@ async function load ($: Engine, id: number) {
       }
     }
     const { size } = await $.fs.stat(file)
-    if (sessionId === loadingIn) thumbs.set(id, pixels)
+    if (sessionId === loadingIn) keep(id, pixels)
     const format = file.slice(file.lastIndexOf('.') + 1)
     picture = { file, format, bytes: size, width: pixels.width, height: pixels.height, ...(png && { png }) }
   } catch (error) {
@@ -468,6 +487,7 @@ function card ({ Box, Image, Raster, Text }: Ui, all: Record<string, Picture>, i
   let painted = cells.get(key)
   if (!source && painted === undefined) {
     painted = toCells(thumbs.get(id)!, columns, rows)
+    for (const other of cells.keys()) if (other.startsWith(`${id}:`)) cells.delete(other)
     cells.set(key, painted)
   }
   const caption = `${label} ${picture.format.toUpperCase()} · ${sizeOf(picture.bytes)}`
@@ -707,6 +727,7 @@ async function float ($: Engine, e: Row, drawn: RenderElement, overlays: RenderE
   const { Box } = ui
   let floating: RenderElement | undefined
   if (isHost) {
+    await reread($, now.id)
     const bounds = { columns: Math.max(8, Math.min(MAX_COLUMNS, (e.viewport?.columns ?? 80) - 4)), rows: Math.min(MAX_ROWS, now.rows) }
     const bottom = now.edge === 'last' ? onScreen.of - 1 - onScreen.last : onScreen.of - 1
     floating = (
@@ -879,6 +900,7 @@ export const register: Register = (on) => {
     const ui = $.ui.resolve(e)
     const { Box, Client, Text } = ui
     const below: RenderElement = await next(e)
+    if (inBand !== undefined) await reread($, inBand)
     const bounds = {
       columns: Math.max(8, Math.min(MAX_COLUMNS, e.props.bodyColumns)),
       rows: Math.max(4, Math.min(MAX_ROWS, e.props.maxRows - 1))
