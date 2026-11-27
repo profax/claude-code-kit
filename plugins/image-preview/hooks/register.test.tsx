@@ -549,8 +549,8 @@ test('a prompt the engine drew first under a stand-in id counts once: the card a
   await w.clock.settle()
 
   await point(message, 'sent:1')
-  // Ten rows of the reply, four of the logo and one spare: the placeholder's three are not there.
-  expect(await message.find({ key: 'image-1' })).toMatchObject({ props: { rows: 15 - 3 } })
+  // Ten rows of the reply, five of the logo and one spare: the placeholder's three are not there.
+  expect(await message.find({ key: 'image-1' })).toMatchObject({ props: { rows: 16 - 3 } })
 })
 
 test('a tool group the engine drew under its tool\'s id until the turn ended counts once', async ($, on) => {
@@ -564,8 +564,8 @@ test('a tool group the engine drew under its tool\'s id until the turn ended cou
   await w.clock.settle()
 
   await point(message, 'sent:1')
-  // Four rows of the group, two of the turn's length, four of the logo and one spare.
-  expect(await message.find({ key: 'image-1' })).toMatchObject({ props: { rows: 11 - 3 } })
+  // Four rows of the group, two of the turn's length, five of the logo and one spare.
+  expect(await message.find({ key: 'image-1' })).toMatchObject({ props: { rows: 12 - 3 } })
 })
 
 test('in Ghostty the terminal draws the picture itself, from the stored PNG', async ($, on) => {
