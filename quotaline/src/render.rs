@@ -30,7 +30,11 @@ pub fn window(name: &str, limit: &Value, now: i64, timed: bool, length: i64) -> 
     let reset = reset
         .filter(|_| timed)
         .map_or(String::new(), |r| dim(&format!(" ↻ {}", left(r - now))));
-    Some(format!("{} {}{reset}", dim(name), painted(used, 75, 90)))
+    Some(format!(
+        "{} {}{reset}",
+        dim(name),
+        painted(used, LIMIT_WARN, LIMIT_DANGER)
+    ))
 }
 
 /// Weekly limits of single models, each under the model's name. The time is
@@ -63,6 +67,10 @@ pub fn scoped(kept: &Value, now: i64) -> Vec<String> {
 fn printable(text: &str) -> String {
     text.chars().filter(|c| !c.is_control()).collect()
 }
+
+/// A limit turns yellow with a quarter of it left and red with a tenth.
+const LIMIT_WARN: i64 = 75;
+const LIMIT_DANGER: i64 = 90;
 
 /// The percentage as a whole number, yellow from `warn`, red from `danger`.
 // a percentage is within 0..=100 after round()

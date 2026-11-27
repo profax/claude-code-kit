@@ -197,7 +197,7 @@ fn files_carry_no_tool_signature() {
 }
 
 #[test]
-fn commit_messages_are_plain_english() {
+fn commit_messages_carry_no_russian_and_no_signature() {
     let log = git(&["log", "--format=%H%n%B%x00"]);
     let commits: Vec<&str> = log
         .split('\0')
