@@ -13,7 +13,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
-use jiff::{Timestamp, Zoned};
+use jiff::{Timestamp, ZonedDateTime};
 use serde_json::{Value, json};
 
 /// A home and the address of the subscription server; without a stub the
@@ -694,7 +694,7 @@ fn day_total_adds_up_sessions() {
 fn session_over_midnight_counts_only_what_it_added_today() {
     let home = Home::new();
     // the day is the machine's local one
-    let today = Zoned::now().date();
+    let today = ZonedDateTime::now().date();
     let yesterday = today.yesterday().expect("date").to_string();
     let seen = Timestamp::now().as_second() - 86_400;
     let kept = json!({"spend": {"day": yesterday, "total": 5.0,

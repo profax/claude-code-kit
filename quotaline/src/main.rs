@@ -26,7 +26,7 @@ use std::io::IsTerminal as _;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use jiff::{Timestamp, Zoned};
+use jiff::{Timestamp, ZonedDateTime};
 use serde_json::{Value, json};
 
 /// Directory of the store: the user's cache directory, or `None` when the
@@ -196,7 +196,7 @@ fn line() {
             .get(event["session_id"].as_str().unwrap_or(""))
             .is_none();
     if paid {
-        let day = Zoned::now().date().to_string();
+        let day = ZonedDateTime::now().date().to_string();
         spend::tally(&mut kept, &event, &day, now);
     }
     let mut saved = lock.is_some();
