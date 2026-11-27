@@ -93,8 +93,8 @@ in your tmux, try adding `set -g mouse on` to `~/.tmux.conf` and running
 
    macOS doesn't start a program downloaded with a browser until Apple has
    checked it, and Apple hasn't checked quotaline. If macOS says it can't
-   verify `quotaline` and doesn't start it, remove the mark macOS put on the
-   file and run step 3 again:
+   verify `quotaline`, or the terminal prints only `killed`, remove the mark
+   macOS put on the file and run step 3 again:
 
    ```
    xattr -d com.apple.quarantine ~/.local/bin/quotaline
