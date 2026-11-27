@@ -470,19 +470,20 @@ test('moving from one listed image to the next opens the next card, the leave an
   expect(await message.find({ type: 'Text', text: /^\[Image #1\] PNG/ })).toBeDefined()
 })
 
-test('rows a resumed session draws all at once, its prompts apart, are put back in the transcript\'s order', async ($, on) => {
+test('rows a resumed session draws a block at a time, the newest first, stand in the transcript\'s order', async ($, on) => {
   const w = world(on, { files: { '1.png': 2048 } })
+  on('session.messages', () => ({ value: ['m-1', 'a-1', 'm-2', 'a-2'].map(uuid => ({ role: uuid.startsWith('m') ? 'user' : 'assistant', text: '', toolUses: [], uuid })) }))
   await startSession($)
-  // As the engine draws a resumed session: its prompts first, then the rest.
-  const first = await sent($, 'hello', { first: 0, last: 1, of: 2 }, 'm-1')
-  const message = await sent($, 'look at [Image #1]', { first: 0, last: 2, of: 3 }, 'm-2')
-  await reply($, 'a-1', { first: 0, last: 9, of: 10 })
+  // As Claude Code 2.1.325 and 2.1.332 draw a resumed session: the screen's block, then the one above.
   await $.ui.mount({ plugin: 'image-preview', surface: 'terminal', component: 'TurnDuration', requestId: 't-1', props: { word: 'Baked', durationMs: 1000, onScreen: { first: 0, last: 1, of: 2 } }, viewport: SCREEN })
+  const message = await sent($, 'look at [Image #1]', { first: 0, last: 2, of: 3 }, 'm-2')
   const after = await reply($, 'a-2', { first: 0, last: 1, of: 2 })
+  await sent($, 'hello', { first: 0, last: 1, of: 2 }, 'm-1')
+  await reply($, 'a-1', { first: 0, last: 9, of: 10 })
   await w.clock.advance(1000)
-  expect(await first.find({ key: 'float-1' })).toBeUndefined()
 
-  // The prompt's rows above it are the first prompt's and the first reply's: 15 rows, more than under it.
+  // The prompt's rows above it are the first prompt's, the first reply's and the turn's duration:
+  // 15 rows, more than under it.
   await point(message, 'sent:1')
   expect(keyed(await message.drawn(), 'float-1')).toMatchObject({ props: { position: 'absolute', bottom: 2 } })
   expect(await after.find({ key: 'float-1' })).toBeUndefined()
