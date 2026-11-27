@@ -3,6 +3,18 @@
 Notable changes, newest first. One version covers the whole kit: quotaline
 and both plugins.
 
+## 0.1.4 (2026-11-27)
+
+- **Both plugins**: while a session runs tools, a card counts each tool
+  group once. Claude Code first draws a new group under a stand-in it
+  replaces within a second, and the plugins counted that row until the turn
+  ended, so a card from a sent prompt could grow past the room it had: over
+  its own label, and under the rows drawn after it. A control character in a
+  file's lines, a reply or what an image reader said shows as �, where
+  before Claude Code dropped the card, the links or the chips that held it.
+- CI tests the plugins on the newest Claude Code at each push, as well as on
+  the oldest they support.
+
 ## 0.1.3 (2026-11-27)
 
 - **Both plugins**: a card no longer lies over Claude Code's logo, which is

@@ -1,6 +1,6 @@
 {
   "name": "quick-peek",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Paths in Claude's replies become links: hover one for a card with its size, age and first lines, click to show it in the file manager.",
   "license": "MIT",
   "author": {
