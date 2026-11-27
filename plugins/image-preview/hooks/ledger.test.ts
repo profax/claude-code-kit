@@ -25,8 +25,9 @@ test('a sent prompt\'s card goes to the side of the prompt with more room', () =
   low.note(row('r-0', 'AssistantMessage', { first: 0, last: 19, of: 20 }))
   low.note(row('m-1', 'UserMessage', { first: 0, last: 1, of: 2 }, '[Image #1]'))
   low.note(row('r-1', 'AssistantMessage', { first: 0, last: 2, of: 3 }))
-  // 20 rows of the reply above, the logo and the spare line: more than the 3 under it.
-  expect(low.placeOf(1, 'm-1/sent:1', 'm-1')).toEqual({ id: 1, target: 'm-1/sent:1', host: 'm-1', rows: 25, edge: 'first' })
+  // 20 rows of the reply above, the logo's 5 and the prompt's own empty top row: more than the 3
+  // under it.
+  expect(low.placeOf(1, 'm-1/sent:1', 'm-1')).toEqual({ id: 1, target: 'm-1/sent:1', host: 'm-1', rows: 26, edge: 'first' })
 
   const high = ledger()
   high.note(row('m-1', 'UserMessage', { first: 0, last: 1, of: 2 }, '[Image #1]'))
