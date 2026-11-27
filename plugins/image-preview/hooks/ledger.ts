@@ -2,7 +2,7 @@
 // order, and where a card that floats over the rows can go.
 import type { EventOf } from 'claude-code'
 
-import { BOTTOM_ROWS, HEADER_ROWS } from './screen'
+import { BOTTOM_ROWS } from './screen'
 import { idsIn } from './tokens'
 import type { Shown } from '../types'
 
@@ -155,9 +155,6 @@ export class Ledger {
     showing.sort((a, b) => placeOn(a[1]) - placeOn(b[1]) || a[1].order - b[1].order)
     const room = this.screenRows - BOTTOM_ROWS
     const lowest = showing.at(-1)
-    const top = showing[0]?.[1]
-    // A row off screen, or a first row that is cut, means the transcript fills the screen.
-    const isFull = top !== undefined && (top.onScreen.first > 0 || [...this.rows.values()].some(row => row.onScreen === null))
     const count = (list: typeof showing) => list.reduce((sum, [, row]) => sum + row.onScreen.last - row.onScreen.first + 1, 0)
 
     const at = showing.findIndex(([requestId]) => requestId === prompt)
@@ -170,7 +167,8 @@ export class Ledger {
       return under < MIN_CARD_ROWS ? null : { id, target, host: lowest![0], rows: under, edge: 'last' }
     }
     const message = showing[at]![1].onScreen
-    const above = message.first > 0 ? 0 : Math.min(room, count(showing.slice(0, at)) + (isFull ? 0 : HEADER_ROWS) + 1)
+    // Never over the logo: Claude Code does not draw it again, and what a card leaves there stays.
+  const above = message.first > 0 ? 0 : Math.min(room, count(showing.slice(0, at)) + 1)
     const under = Math.min(room, count(showing.slice(at + 1)))
     if (Math.max(above, under) < MIN_CARD_ROWS) return null
     return above >= under

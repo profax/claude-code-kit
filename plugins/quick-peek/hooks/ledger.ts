@@ -115,7 +115,8 @@ export class Ledger {
     // A short transcript sits at the top, with nothing under it down to the prompt box; one line is
     // kept spare.
     const free = isFull ? 0 : Math.max(0, this.screenRows - BOTTOM_ROWS - HEADER_ROWS - all - 1)
-    const up = Math.max(0, above - at.first) + (at.first > 0 ? 0 : before + (isFull ? 0 : HEADER_ROWS))
+    // Never over the logo: Claude Code does not draw it again, and what a card leaves there stays.
+    const up = Math.max(0, above - at.first) + (at.first > 0 ? 0 : before)
     const down = Math.max(0, at.last - above - slack) + (at.last < at.of - 1 ? 0 : after + free)
     // Rows drawn after the reply, and the reply's own lines below the path, paint over a card under
     // the path: the only clear room there is below the transcript's last line.

@@ -3,7 +3,8 @@
 
 /**
  * Above the first transcript row: an empty row, the logo's three and another empty one (measured in
- * Claude Code 2.1.332). Once the transcript fills the screen the logo has scrolled away.
+ * Claude Code 2.1.332). Once the transcript fills the screen the logo has scrolled away. A card
+ * never lies over these rows: Claude Code does not draw them again, and what a card leaves stays.
  */
 export const HEADER_ROWS = 5
 /** Below the last transcript row: the band, the prompt box with its hints, and the status line. */
