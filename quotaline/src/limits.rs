@@ -112,6 +112,15 @@ fn newer(a: &Value, b: &Value, seen: Seen, now: i64) -> bool {
         return false;
     }
     if reset(a) == reset(b) {
+        // A session gives whole percents with the fraction cut off, the
+        // server gives the fraction: 98 after 98.6 is the same reading.
+        let used = |v: &Value| v["used_percentage"].as_f64();
+        if let (Some(fresh), Some(kept)) = (used(a), used(b))
+            && fresh.fract() == 0.0
+            && (fresh..fresh + 1.0).contains(&kept)
+        {
+            return false;
+        }
         return a != b;
     }
     reset(a) > reset(b) || reset(a) > now
