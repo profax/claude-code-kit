@@ -392,7 +392,7 @@ function drawRows (ui: Ui, rows: Row[], width: number, targets: Target[], parts:
           return (
             <Box key={`card:${run.link}:${part}`}>
               <Client key={`path:${run.link}:${part}`} module="./link.tsx" props={props} />
-              <Box position="absolute" top={place.top} left={left} width={cardWidth} flexDirection="column" display="none" hover={{ display: 'flex' }}>
+              <Box position="absolute" top={place.top} left={left} width={cardWidth} flexDirection="column" backgroundColor="userMessageBackground" display="none" hover={{ display: 'flex' }}>
                 <Text color="text" backgroundColor="subtle" wrap="truncate-end">{padded(card, cardWidth)}</Text>
                 {excerpt && source !== undefined && numbered(ui, source, excerpt.first, cardWidth, target.path)}
               </Box>
