@@ -3,7 +3,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, RenderElement } from 'claude-code'
 
-import { fit, parseBmp, toCells } from './pixels'
+import { bmp } from './bmp.testing'
 import { READER, WINDOWS } from './window'
 
 const FOLDER = '/tmp/claude-501/-project-app/s-1'
@@ -21,28 +21,6 @@ const BLUE = 0x0000ff
 // The limits ImageMagick reads a pasted picture under.
 const LIMITS = ['-limit', 'memory', '256MiB', '-limit', 'map', '512MiB', '-limit', 'area', '128MP', '-limit', 'disk', '1GiB', '-limit', 'time', '30']
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
-
-/** A 24-bit bottom-up BMP, as ImageMagick writes one: `rows` top first, each pixel `0xRRGGBB`. */
-function bmp (rows: number[][]) {
-  const width = rows[0]!.length
-  const height = rows.length
-  const stride = Math.ceil((width * 3) / 4) * 4
-  const bytes = new Uint8Array(54 + stride * height)
-  const view = new DataView(bytes.buffer)
-  bytes.set([0x42, 0x4d])
-  view.setUint32(2, bytes.length, true)
-  view.setUint32(10, 54, true)
-  view.setUint32(14, 40, true)
-  view.setInt32(18, width, true)
-  view.setInt32(22, height, true)
-  view.setUint16(26, 1, true)
-  view.setUint16(28, 24, true)
-  rows.forEach((row, y) => row.forEach((color, x) => {
-    const at = 54 + (height - 1 - y) * stride + x * 3
-    bytes.set([color & 0xff, (color >> 8) & 0xff, color >> 16], at)
-  }))
-  return bytes
-}
 
 /**
  * The path as the mocked session wrote it. A Windows host hands the handlers `C:\tmp\claude-501\...`
@@ -192,38 +170,6 @@ const reply = ($: Engine, requestId: string, onScreen: Shown, viewport = SCREEN)
 /** The pointer onto (or off) a chip: the band's, `chip:N`, or the one over a sent prompt's list, `sent:N`. */
 const point = (ui: { pointer: (event: { type: 'enter' | 'leave'; x: number; y: number; in?: string }) => Promise<void> }, chip: string, type: 'enter' | 'leave' = 'enter') =>
   ui.pointer({ type, x: 0, y: 0, in: chip })
-
-test('reads a BMP bottom-up into RGBA, top row first', () => {
-  const { width, height, data } = parseBmp(bmp([[RED, BLUE], [BLUE, RED]]))
-  expect([width, height]).toEqual([2, 2])
-  expect([...data.slice(0, 8)]).toEqual([255, 0, 0, 255, 0, 0, 255, 255])
-  expect([...data.slice(8, 16)]).toEqual([0, 0, 255, 255, 255, 0, 0, 255])
-})
-
-test('fits a picture in the bounds, keeping its shape', () => {
-  expect(fit(1280, 800, 64, 18)).toEqual({ columns: 58, rows: 18 })
-  expect(fit(1600, 400, 64, 18)).toEqual({ columns: 64, rows: 8 })
-  expect(fit(10, 10, 64, 18)).toEqual({ columns: 10, rows: 5 })
-})
-
-
-const wordsOf = (cells: string) => [...new Uint32Array(Uint8Array.fromBase64(cells).buffer)]
-
-test('paints a cell of two colors as a half block: the top one over the bottom one', () => {
-  expect(wordsOf(toCells(parseBmp(bmp([[RED], [BLUE]])), 1, 1))).toEqual([0x2580, RED, BLUE])
-})
-
-test('paints the quarters of a cell that differ in the foreground', () => {
-  expect(wordsOf(toCells(parseBmp(bmp([[RED, BLUE], [RED, RED]])), 1, 1))).toEqual([0x259d, BLUE, RED])
-  expect(wordsOf(toCells(parseBmp(bmp([[RED, BLUE], [BLUE, RED]])), 1, 1))).toEqual([0x259a, RED, BLUE])
-})
-
-test('paints an edge between the halves of a cell with an eighth block', () => {
-  const rows = [RED, RED, RED, RED, RED, RED, BLUE, BLUE].map(color => [color])
-  expect(wordsOf(toCells(parseBmp(bmp(rows)), 1, 1))).toEqual([0x2582, BLUE, RED])
-  const columns = [[RED, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE, BLUE]]
-  expect(wordsOf(toCells(parseBmp(bmp([...columns, ...columns])), 1, 1))).toEqual([0x258f, RED, BLUE])
-})
 
 test('a pasted image gets a chip above the prompt, its card shown while the pointer is on it', async ($, on) => {
   const w = world(on, { draft: 'what is wrong here? [Image #1]' })
