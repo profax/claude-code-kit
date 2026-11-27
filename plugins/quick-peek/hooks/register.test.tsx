@@ -20,6 +20,7 @@ const SCRIPT = '/Users/ana/bin/deploy.command'
 const BINARY = '/project/app/target/release/app'
 const WIN_SETUP = 'C:\\Users\\ana\\setup.exe'
 const ENV = '/project/app/.env'
+const PHOTO = '/Users/ana/Pictures/avatar.jpg'
 const CODE = ['import { run } from \'./run\'', '', '// Starts it', 'export async function start (port: number) {', '  const server = await run(port)', '  return server', '}', ''].join('\n')
 const SCREEN = { columns: 60, rows: 40, isFullscreen: true }
 
@@ -35,7 +36,7 @@ function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'lin
   mock.env(on, { ...(isWindows ? { USERPROFILE: WIN_HOME, OS: 'Windows_NT' } : { HOME: '/Users/ana' }), ...(platform === 'wsl' && { WSL_DISTRO_NAME: 'Ubuntu' }), ...env })
   const there: Record<string, 'file' | 'dir'> = isWindows
     ? { [WIN_VIDEO]: 'file', [WIN_README]: 'file', [WIN_SOURCE]: 'file', [WIN_SETUP]: 'file' }
-    : { [VIDEO]: 'file', [FOLDER]: 'dir', [README]: 'file', [SOURCE]: 'file', [SCRIPT]: 'file', [BINARY]: 'file', [ENV]: 'file' }
+    : { [VIDEO]: 'file', [FOLDER]: 'dir', [README]: 'file', [SOURCE]: 'file', [SCRIPT]: 'file', [BINARY]: 'file', [ENV]: 'file', [PHOTO]: 'file' }
   const root = isWindows ? WIN_ROOT : '/project/app'
   const runs: string[][] = []
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -48,7 +49,7 @@ function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'lin
       return { value: { exitCode: 0, stdout: platform === 'macos' ? 'Darwin\n' : 'Linux\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     }
     runs.push([...e.argv])
-    const stdout = e.argv[0] === 'wslpath' ? `\\\\wsl.localhost\\Ubuntu${e.argv[2]!.replaceAll('/', '\\')}\n` : ''
+    const stdout = e.argv[0] === 'wslpath' ? `\\\\wsl.localhost\\Ubuntu${e.argv[2]!.replaceAll('/', '\\')}\n` : e.argv[0] === 'id' ? '501\n' : ''
     return { value: { exitCode: failing.includes(e.argv[0]!) ? 1 : 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   // A host that is not Windows takes a Windows path for a relative one and puts its own working
@@ -64,6 +65,8 @@ function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'lin
     const path = asked(e.path)
     if (path === SOURCE || path === WIN_SOURCE) return { value: CODE }
     if (path === ENV) return { value: 'API_TOKEN=sk-live-0123456789\n' }
+    // The PNG a reader wrote of a portrait photo: only its header's size matters here.
+    if (path.endsWith('.png')) return { value: { base64: pngHeader(600, 800) } }
     return { deny: `ENOENT: ${e.path}` }
   })
   on('ui.render', ($, e) => {
@@ -76,6 +79,16 @@ function world (on: On, { env = {}, cwd, cwdError, failing = [], platform = 'lin
     return { value: undefined }
   })
   return { clock, runs, logs }
+}
+
+/** A PNG's signature and header chunk, which name its size. */
+function pngHeader (width: number, height: number) {
+  const bytes = new Uint8Array(33)
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
+  const view = new DataView(bytes.buffer)
+  view.setUint32(16, width)
+  view.setUint32(20, height)
+  return bytes.toBase64()
 }
 
 const startSession = ($: Engine, cwd = '/project/app') => $.session.start({ cwd, surface: 'terminal', isInteractive: true })
@@ -379,6 +392,28 @@ test('the card of a file of code shows its first lines, colored by the engine', 
   expect(await ui.find({ type: 'Code' })).toMatchObject({ props: { path: SOURCE } })
   expect(await ui.find({ key: 'card:0:0' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /app\.ts · \d+ B · \d+[smhd] ago · click: show in file manager/ })).toBeDefined()
+})
+
+test('in Ghostty the card of a picture shows the picture under its name, shrunk to a PNG first', async ($, on) => {
+  const w = world(on, { platform: 'macos', env: { TERM_PROGRAM: 'ghostty' } })
+  await startSession($)
+  const ui = await reply($, `Saved: ${PHOTO}`)
+  await w.clock.settle()
+  const png = '/tmp/claude-501/quick-peek/1.png'
+  expect(w.runs).toContainEqual(['sips', '-s', 'format', 'png', '-Z', '800', PHOTO, '--out', png])
+  expect(await ui.find({ type: 'Text', text: /avatar\.jpg · 12\.0 MB · / })).toBeDefined()
+  // A portrait 600 by 800 in cells twice as tall as wide: 12 rows take 18 columns.
+  expect(await ui.find({ type: 'Image' })).toMatchObject({ props: { source: { file: png, format: 'png' }, columns: 18, rows: 12 } })
+})
+
+test('a picture keeps a card without the picture where the terminal draws none', async ($, on) => {
+  const w = world(on, { platform: 'macos', env: { TERM_PROGRAM: 'Apple_Terminal' } })
+  await startSession($)
+  const ui = await reply($, `Saved: ${PHOTO}`)
+  await w.clock.settle()
+  expect(await ui.find({ type: 'Text', text: /avatar\.jpg · 12\.0 MB · / })).toBeDefined()
+  expect(await ui.find({ type: 'Image' })).toBeUndefined()
+  expect(w.runs.filter(argv => argv[0] === 'sips')).toEqual([])
 })
 
 test('a card writes every cell it covers, in a light theme as in a dark one', async ($, on) => {
