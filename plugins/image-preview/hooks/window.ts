@@ -33,13 +33,33 @@ Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 ${OPEN_PICTURE}
 $largest = if ($env:IMAGE_PREVIEW_SIZE) { [int]$env:IMAGE_PREVIEW_SIZE } else { 800 }
 $life = if ($env:IMAGE_PREVIEW_LIFE) { [int]$env:IMAGE_PREVIEW_LIFE } else { 120 }
-# A window that takes no focus, stays on top and lets the pointer through. Compiled once into the
-# temp folder: compiling takes a second.
-$assembly = Join-Path $env:TEMP 'image-preview-popup-1.dll'
+# A window that takes no focus, stays on top and lets the pointer through, and the scale of the
+# screen. Compiled once into the temp folder: compiling takes a second.
+$assembly = Join-Path $env:TEMP 'image-preview-popup-2.dll'
 if (-not (Test-Path $assembly)) {
   try {
   Add-Type -OutputAssembly $assembly -OutputType Library -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
 public class ImagePreviewPopup : System.Windows.Forms.Form {
+  [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] static extern IntPtr MonitorFromPoint(System.Drawing.Point point, uint flags);
+  [DllImport("shcore.dll")] static extern int GetDpiForMonitor(IntPtr monitor, int kind, out uint x, out uint y);
+  // Before any window: a process Windows takes for one that knows no scale gets its windows
+  // stretched to the scale, and the picture blurred. Per monitor where Windows has it.
+  public static void Sharp() {
+    try { if (SetProcessDpiAwarenessContext(new IntPtr(-4))) return; } catch (EntryPointNotFoundException) { }
+    SetProcessDPIAware();
+  }
+  // The scale of the screen at a point in its pixels: 2.0 at 200%.
+  public static double ScaleAt(int x, int y) {
+    uint dpiX, dpiY;
+    try {
+      if (GetDpiForMonitor(MonitorFromPoint(new System.Drawing.Point(x, y), 2), 0, out dpiX, out dpiY) == 0) return dpiX / 96.0;
+    } catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { }
+    using (System.Drawing.Graphics screen = System.Drawing.Graphics.FromHwnd(IntPtr.Zero)) { return screen.DpiX / 96.0; }
+  }
   protected override bool ShowWithoutActivation { get { return true; } }
   protected override System.Windows.Forms.CreateParams CreateParams {
     get {
@@ -55,12 +75,17 @@ public class ImagePreviewPopup : System.Windows.Forms.Form {
   }
 }
 Add-Type -Path $assembly
+[ImagePreviewPopup]::Sharp()
 try { $image = Open-Picture $env:IMAGE_PREVIEW_FILE } catch { [Console]::Out.WriteLine('error: cannot read the image'); exit 1 }
 $cursor = [System.Windows.Forms.Cursor]::Position
 $area = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
-$fit = [Math]::Min(1.0, [Math]::Min($largest / [Math]::Max($image.Width, $image.Height), [Math]::Min($area.Width * 0.7 / $image.Width, $area.Height * 0.7 / $image.Height)))
-$pad = 6
-$gap = 18
+# Sizes are in the screen's pixels: the window is as large as at 100%, a picture larger than that
+# is drawn from its own pixels, not from fewer.
+$scale = [ImagePreviewPopup]::ScaleAt($cursor.X, $cursor.Y)
+$largest = $largest * $scale
+$fit = [Math]::Min($scale, [Math]::Min($largest / [Math]::Max($image.Width, $image.Height), [Math]::Min($area.Width * 0.7 / $image.Width, $area.Height * 0.7 / $image.Height)))
+$pad = [int](6 * $scale)
+$gap = [int](18 * $scale)
 $width = [int]($image.Width * $fit) + $pad * 2
 $height = [int]($image.Height * $fit) + $pad * 2
 # Above the pointer and to its right, or below and to its left where there is no room: the pointer
