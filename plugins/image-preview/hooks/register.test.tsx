@@ -642,6 +642,16 @@ test('ImageMagick that runs and fails says what it said, not that it is missing'
   expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: magick can't read it: no decode delegate for this image format `HEIC'/ })).toBeDefined()
 })
 
+test('a reader that colors what it says still gets its words on the card', async ($, on) => {
+  // Claude Code drops a whole drawing that holds a control character, an escape sequence included.
+  const w = world(on, { draft: '[Image #1]', missing: ['convert'], refusing: { magick: '\u001b[31mmagick: unable to open image\u001b[0m\u0007\n' } })
+  await startSession($)
+  await w.clock.settle()
+  const ui = await band($)
+  await point(ui, 'chip:1')
+  expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: magick can't read it: �\[31mmagick: unable to open image�\[0m�/ })).toBeDefined()
+})
+
 test('a cache folder that can\'t be made is named as the cause', async ($, on) => {
   const w = world(on, { draft: '[Image #1]', refusing: { mkdir: `mkdir: ${FOLDER}/image-preview: Permission denied\n` } })
   await startSession($)

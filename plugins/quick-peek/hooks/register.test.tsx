@@ -173,6 +173,19 @@ test('a preview shows the first lines, or those around the one named, the shared
   expect(excerptOf('\n  \n', undefined, 3)).toBeUndefined()
 })
 
+test('a preview marks each control character, which would cost the reply its links', () => {
+  // Claude Code drops a whole drawing that holds a control character, an escape sequence included.
+  expect(excerptOf('a\u001b[31mred\u001b[0m\n\u000cpage\rend\u007f', undefined, 5)!.source).toBe('a�[31mred�[0m\n�page�end�')
+})
+
+test('a reply with a control character in it keeps its links', async ($, on) => {
+  world(on)
+  await startSession($)
+  const ui = await reply($, 'Mira src/app.ts \u001b[1mya\u0007')
+  expect(await ui.find({ key: 'card:0:0' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /�\[1mya�/ })).toBeDefined()
+})
+
 test('wraps as the engine does: a path that does not fit moves down; one longer than a row is cut after a folder', () => {
   const rows = (text: string, width: number) => wrap([{ text, style: {}, link: 0 }], width).map(row => row.map(run => run.text).join(''))
   expect(wrap(inline('see **this** and /a/very/long/path'), 16).map(row => row.map(run => run.text))).toEqual([['see ', 'this', ' and /a/'], ['very/long/path']])
