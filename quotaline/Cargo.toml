@@ -1,6 +1,6 @@
 [package]
 name = "quotaline"
-version = "0.1.1"
+version = "0.1.2"
 description = "A status line for Claude Code: context, subscription limits and the time until they reset"
 edition.workspace = true
 license.workspace = true

@@ -3,6 +3,19 @@
 Notable changes, newest first. One version covers the whole kit: quotaline
 and both plugins.
 
+## 0.1.2 (2026-11-27)
+
+- **image-preview**: on Windows and under WSL, the window draws a picture in
+  the screen's own pixels, so on a scaled screen it is no longer soft.
+- **quick-peek**: a card has the fill of a prompt, so its lines don't run
+  into the transcript under them. A card under its path lies whole over the
+  rows drawn after the reply, the next prompt included.
+- **quotaline**: a session billed by API key shows its cost without the
+  subscription limits of a login on the same machine.
+- The plugins' code is split into modules by concern, with direct tests for
+  the prompt-token layout, the BMP reader and card placement; what the
+  plugins do is unchanged.
+
 ## 0.1.1 (2026-11-27)
 
 - **image-preview**: the card of a chip above the prompt always opens above
