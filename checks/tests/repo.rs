@@ -505,15 +505,15 @@ fn the_home_check_tells_a_real_user_from_a_sample_one() {
     assert_eq!(real_home("the /Users/ folder", "/Users/"), None);
 }
 
-/// CI checks the plugins on the oldest Claude Code they support; a new
-/// release could break them without anyone seeing it. A weekly run tries the
-/// newest one.
+/// CI checks the plugins on the oldest Claude Code they support and on the
+/// newest: at each push, and weekly, since a new release can break them
+/// between pushes.
 #[test]
-fn plugins_are_tried_weekly_on_the_newest_claude_code() {
-    let path = ".github/workflows/newest-claude-code.yml";
-    assert!(root().join(path).is_file(), "{path} is missing");
+fn plugins_are_tried_on_the_newest_claude_code_at_each_push_and_weekly() {
+    let path = ".github/workflows/ci.yml";
     let workflow = read(path);
     for needed in [
+        "push:",
         "schedule:",
         "cron:",
         "@anthropic-ai/claude-code@latest",
