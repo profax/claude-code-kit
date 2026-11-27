@@ -44,7 +44,7 @@ pub fn scoped(kept: &Value, now: i64) -> Vec<String> {
         .into_iter()
         .flatten()
         .filter_map(|limit| {
-            let name = limit["name"].as_str()?.to_lowercase();
+            let name = printable(limit["name"].as_str()?).to_lowercase();
             let own = limit["resets_at"].as_i64();
             if own.or(week).is_some_and(|reset| reset <= now) {
                 return None;
@@ -55,6 +55,13 @@ pub fn scoped(kept: &Value, now: i64) -> Vec<String> {
             window(&name, &limit, now, timed, 0)
         })
         .collect()
+}
+
+/// `text` without control characters: names come from the session's data
+/// and from a store anyone can edit, and an escape sequence in one would
+/// reach the terminal.
+fn printable(text: &str) -> String {
+    text.chars().filter(|c| !c.is_control()).collect()
 }
 
 /// The percentage as a whole number, yellow from `warn`, red from `danger`.
@@ -84,7 +91,7 @@ pub fn dim(text: &str) -> String {
 /// Both change in the middle of a session, and the line shows the current
 /// ones.
 pub fn model(event: &Value) -> Option<String> {
-    let name = event["model"]["display_name"].as_str()?;
+    let name = printable(event["model"]["display_name"].as_str()?);
     let name = name.trim_start_matches("Claude ");
     let color = match name.split(' ').next() {
         Some("Opus") => "\x1b[1;35m",
@@ -94,12 +101,12 @@ pub fn model(event: &Value) -> Option<String> {
         _ => "\x1b[1m",
     };
     let mut shown = format!("{color}{name}\x1b[0m");
-    if let Some(level) = event["effort"]["level"].as_str() {
+    if let Some(level) = event["effort"]["level"].as_str().map(printable) {
         // xhigh and max use up the limits faster: they stand out
-        let level = match level {
+        let level = match level.as_str() {
             "xhigh" | "max" => format!("\x1b[1m{level}\x1b[0m"),
-            "high" => level.to_owned(),
-            _ => dim(level),
+            "high" => level,
+            _ => dim(&level),
         };
         shown = format!("{shown} {level}");
     }
@@ -211,17 +218,14 @@ mod tests {
     fn names_carry_no_control_characters() {
         // a store anyone can edit and a session's data would otherwise send
         // their escape sequences to the terminal
-        let event = json!({"model": {"display_name": "Opus\x1b]0;title\x07 5.5"},
+        let event = json!({"model": {"display_name": "Opus 5.5\x1b]0;title\x07"},
                            "effort": {"level": "hi\x1b[2Jgh"}});
         assert_eq!(
             model(&event).unwrap(),
-            "\x1b[1;35mOpus]0;title 5.5\x1b[0m \x1b[38;5;243mhi[2Jgh\x1b[0m"
+            "\x1b[1;35mOpus 5.5]0;title\x1b[0m \x1b[38;5;243mhi[2Jgh\x1b[0m"
         );
         let kept = json!({"scoped": [{"name": "Fa\x1b[31mble\u{9b}", "used_percentage": 5.0, "resets_at": 1000}]});
-        assert_eq!(
-            scoped(&kept, 0),
-            ["\x1b[38;5;243mfa[31mble\x1b[0m 5%"]
-        );
+        assert_eq!(scoped(&kept, 0), ["\x1b[38;5;243mfa[31mble\x1b[0m 5%"]);
     }
 
     #[test]
