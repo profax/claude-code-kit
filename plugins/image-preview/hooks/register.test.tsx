@@ -18,6 +18,8 @@ const WSL = { WSL_DISTRO_NAME: 'Ubuntu', WSLENV: 'WT_SESSION' }
 const RED = 0xff0000
 const BLUE = 0x0000ff
 // What ImageMagick writes for the terminal to draw: a PNG, one red pixel.
+// The limits ImageMagick reads a pasted picture under.
+const LIMITS = ['-limit', 'memory', '256MiB', '-limit', 'map', '512MiB', '-limit', 'area', '128MP', '-limit', 'disk', '1GiB', '-limit', 'time', '30']
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
 
 /** A 24-bit bottom-up BMP, as ImageMagick writes one: `rows` top first, each pixel `0xRRGGBB`. */
@@ -237,7 +239,7 @@ test('a pasted image gets a chip above the prompt, its card shown while the poin
   await point(ui, 'chip:1')
   expect(await ui.find({ key: 'image-1' })).toMatchObject({ type: 'Raster', props: { columns: 2, rows: 1 } })
   expect(await ui.find({ type: 'Text', text: /\[Image #1\] PNG · 300 KB/ })).toBeDefined()
-  expect(w.runs).toContainEqual(['magick', `${FOLDER}/images/1.png`, '-resize', '800x800', `BMP3:${FOLDER}/image-preview/1.bmp`])
+  expect(w.runs).toContainEqual(['magick', ...LIMITS, `${FOLDER}/images/1.png`, '-resize', '800x800', `BMP3:${FOLDER}/image-preview/1.bmp`])
 
   await point(ui, 'chip:1', 'leave')
   expect(await ui.find({ key: 'image-1' })).toBeUndefined()
@@ -290,6 +292,22 @@ test('an image the session never stored says so', async ($, on) => {
   const ui = await band($)
   await point(ui, 'chip:7')
   expect(await ui.find({ type: 'Text', text: /^\[Image #7\] no preview: not stored in this session/ })).toBeDefined()
+})
+
+test('a session keeps the pixels of its last eight pictures, and reads an older one again when it is hovered', async ($, on) => {
+  // Each picture's pixels take megabytes: a long session would hold them all.
+  const ids = Array.from({ length: 10 }, (_, i) => i + 1)
+  const w = world(on, { draft: ids.map(id => `[Image #${id}]`).join(' '), files: Object.fromEntries(ids.map(id => [`${id}.png`, 1024])) })
+  await startSession($)
+  await w.clock.settle()
+  const reads = () => w.runs.filter(argv => argv.at(-1) === `BMP3:${FOLDER}/image-preview/1.bmp`).length
+  expect(reads()).toBe(1)
+
+  const ui = await band($)
+  await point(ui, 'chip:1')
+  await w.clock.settle()
+  expect(reads()).toBe(2)
+  expect(await ui.find({ key: 'image-1' })).toMatchObject({ type: 'Raster' })
 })
 
 test('sending the prompt takes the chips away, and the card a chip opened', async ($, on) => {
@@ -468,7 +486,7 @@ test('told the terminal draws pictures, the card sends it the picture as PNG byt
   const ui = await band($)
   await point(ui, 'chip:1')
   expect(await ui.find({ key: 'image-1' })).toMatchObject({ type: 'Image', props: { source: { png: PNG } } })
-  expect(w.runs).toContainEqual(['magick', `${FOLDER}/images/1.png`, '-resize', '1024x1024>', `PNG:${FOLDER}/image-preview/1.view.png`])
+  expect(w.runs).toContainEqual(['magick', ...LIMITS, `${FOLDER}/images/1.png`, '-resize', '1024x1024>', `PNG:${FOLDER}/image-preview/1.view.png`])
 })
 
 test('moving from one listed image to the next opens the next card, the leave and the enter in either order', async ($, on) => {
@@ -628,7 +646,7 @@ test('a JPEG is shrunk to a PNG beside the cache for the terminal to draw', asyn
   await w.clock.settle()
   const ui = await band($)
   await point(ui, 'chip:1')
-  expect(w.runs).toContainEqual(['magick', `${FOLDER}/images/1.jpg`, `PNG:${FOLDER}/image-preview/1.png`])
+  expect(w.runs).toContainEqual(['magick', ...LIMITS, `${FOLDER}/images/1.jpg`, `PNG:${FOLDER}/image-preview/1.png`])
   expect(await ui.find({ key: 'image-1' })).toMatchObject({ type: 'Image', props: { source: { file: `${FOLDER}/image-preview/1.png` } } })
 })
 
@@ -639,7 +657,7 @@ test('with ImageMagick 6 alone, convert reads the picture', async ($, on) => {
   const ui = await band($)
   await point(ui, 'chip:1')
   expect(await ui.find({ key: 'image-1' })).toMatchObject({ type: 'Raster' })
-  expect(w.runs).toContainEqual(['convert', `${FOLDER}/images/1.png`, '-resize', '800x800', `BMP3:${FOLDER}/image-preview/1.bmp`])
+  expect(w.runs).toContainEqual(['convert', ...LIMITS, `${FOLDER}/images/1.png`, '-resize', '800x800', `BMP3:${FOLDER}/image-preview/1.bmp`])
 })
 
 test('without ImageMagick the card says what it needs', async ($, on) => {
@@ -764,7 +782,7 @@ test('on Windows with ImageMagick, magick reads the picture', async ($, on) => {
   const ui = await band($)
   await point(ui, 'chip:1')
   expect(await ui.find({ key: 'image-1' })).toMatchObject({ type: 'Raster' })
-  expect(w.runs).toContainEqual(['magick', `${WIN_FOLDER}\\images\\1.png`, '-resize', '800x800', `BMP3:${WIN_FOLDER}\\image-preview\\1.bmp`])
+  expect(w.runs).toContainEqual(['magick', ...LIMITS, `${WIN_FOLDER}\\images\\1.png`, '-resize', '800x800', `BMP3:${WIN_FOLDER}\\image-preview\\1.bmp`])
 })
 
 test('on Windows the card opens in a window by the pointer, as under WSL', async ($, on) => {
@@ -871,7 +889,7 @@ test('under WSL a sent prompt\'s chip opens the window too, and a click ends it'
   expect(w.windows[0]!.isEnded).toBe(true)
 })
 
-test('under WSL with no window to be had, the terminal draws the card, and the next one with no window tried', async ($, on) => {
+test('under WSL with no window to be had, the terminal draws the cards for five minutes, and then a window is tried again', async ($, on) => {
   const w = world(on, { draft: '[Image #1]', env: WSL, window: 'error' })
   await startSession($)
   await w.clock.settle()
@@ -885,6 +903,13 @@ test('under WSL with no window to be had, the terminal draws the card, and the n
   expect(w.windows).toHaveLength(1)
   // Claude Code puts the plugin's name before the line itself.
   expect(w.logs.filter(line => line.text.startsWith('no window ('))).toEqual([{ text: expect.stringContaining('the terminal draws the cards'), to: 'debug' }])
+
+  // A failure may pass: five minutes on, a window is tried again.
+  await point(ui, 'chip:1', 'leave')
+  await w.clock.advance(5 * 60 * 1000)
+  await point(ui, 'chip:1')
+  await w.clock.advance(100)
+  expect(w.windows).toHaveLength(2)
 })
 
 test('under WSL over SSH the window would open on another desktop: the terminal draws the card', async ($, on) => {
