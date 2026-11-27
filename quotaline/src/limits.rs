@@ -211,10 +211,8 @@ mod tests {
         // the same week: an idle session reports old numbers, they are not newer
         assert!(!newer(&at(100, 72.0), &at(100, 75.0), Seen::Same, 50));
         assert!(!newer(&at(100, 99.0), &at(100, 75.0), Seen::Same, 50));
-        // a new response: both a higher and a lower percentage are newer
+        // a new response: a higher percentage is newer
         assert!(newer(&at(100, 76.0), &at(100, 75.0), Seen::Renewed, 50));
-        assert!(newer(&at(100, 1.0), &at(100, 100.0), Seen::Renewed, 50));
-        assert!(newer(&at(100, 1.0), &at(100, 100.0), Seen::New, 50));
         // the window has reset: the next window is newer at any percentage
         assert!(newer(&at(200, 1.0), &at(100, 75.0), Seen::Renewed, 150));
         // an idle session with its previous window, still running, is not newer
@@ -269,14 +267,21 @@ mod tests {
     }
 
     #[test]
-    fn a_whole_session_number_keeps_the_servers_finer_one() {
-        // the server said 98.6 (shown as 99), then a session reports the
-        // same week as a whole 98: the shown number must not drop to 98
-        assert!(!newer(&at(100, 98.0), &at(100, 98.6), Seen::Renewed, 50));
-        assert!(!newer(&at(100, 98.0), &at(100, 98.0), Seen::Renewed, 50));
-        // past the server's number, or a reset limit, still replaces it
-        assert!(newer(&at(100, 99.0), &at(100, 98.6), Seen::Renewed, 50));
-        assert!(newer(&at(100, 0.0), &at(100, 98.6), Seen::Renewed, 50));
+    fn a_session_never_lowers_a_window() {
+        // the server said 99, then a session still holding an older 98
+        // reports the same week: the shown number must not drop to 98
+        assert!(!newer(&at(100, 98.0), &at(100, 99.0), Seen::Renewed, 50));
+        assert!(!newer(&at(100, 1.0), &at(100, 100.0), Seen::New, 50));
+        assert!(newer(&at(100, 99.0), &at(100, 98.0), Seen::Renewed, 50));
+        // a limit reset early: a new reset time comes in from a session,
+        // the same one goes down through the server, which is always taken
+        assert!(newer(&at(300, 0.0), &at(100, 99.0), Seen::Renewed, 50));
+        let mut kept = json!({"seven_day": at(100, 99.0)});
+        absorb(
+            &mut kept,
+            &json!({"seven_day": {"utilization": 0.0, "resets_at": 100}}),
+        );
+        assert_eq!(kept["seven_day"], at(100, 0.0));
     }
 
     #[test]
