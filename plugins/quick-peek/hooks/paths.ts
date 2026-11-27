@@ -7,7 +7,7 @@
 export type Found = { start: number; end: number; target: string }
 
 // What a sentence puts after a path, and a line (and column) after a file.
-const TRAILING = /[.,;:!?)\]}>'"»”’]+$/
+const TRAILING = new Set('.,;:!?)]}>\'"»”’')
 const LINE = /:\d+(?::\d+)?$/
 // An address: never a path, nor the paths inside it.
 const URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s<>()]+/gi
@@ -28,17 +28,25 @@ const SPAN = /^(?:(?:~|\.{1,2})?\/|(?:~|\.{1,2})\\|[A-Za-z]:[\\/])[^\n`]*[^\s`]$
 // How a Windows path starts, and so how a Windows working folder is known.
 const DRIVE = /^[A-Za-z]:[\\/]/
 
+/**
+ * `text` less what a sentence puts after a path. Walked back from the end: a pattern anchored at
+ * the end would try a long run of these from every place in it.
+ */
+function trimmed (text: string) {
+  let end = text.length
+  while (end > 0 && TRAILING.has(text[end - 1]!)) end--
+  return text.slice(0, end)
+}
+
 /** The path `found` names, with what a sentence or a line number adds after it cut; none when nothing is left. */
 function clean (text: string) {
-  let target = text.replace(TRAILING, '')
-  target = target.replace(LINE, '')
-  target = target.replace(TRAILING, '')
+  const target = trimmed(trimmed(text).replace(LINE, ''))
   return /[\w~]/.test(target) && target !== '~' ? target : undefined
 }
 
 /** The line a path's text names after it (`src/x.ts:12`, `src/x.ts:12:5`), if it names one. */
 export function lineOf (text: string) {
-  const line = text.trim().replace(TRAILING, '').match(LINE)?.[0]
+  const line = trimmed(text.trim()).match(LINE)?.[0]
   return line === undefined ? undefined : Number(line.slice(1).split(':')[0])
 }
 
@@ -48,10 +56,9 @@ export function pathsIn (text: string): Found[] {
   const found: Found[] = []
   for (const match of masked.matchAll(CANDIDATE)) {
     const whole = match[0]
-    const trimmed = whole.replace(TRAILING, '')
     const target = clean(whole)
     if (target === undefined) continue
-    found.push({ start: match.index, end: match.index + trimmed.length, target })
+    found.push({ start: match.index, end: match.index + trimmed(whole).length, target })
   }
   return found
 }
