@@ -732,9 +732,20 @@ fn subscription_session_adds_nothing_to_the_day() {
         .expect("event")
         .remove("rate_limits");
     assert!(!home.line(&session).contains("today"));
-    let line = home.line(&paid_session("b", 1.0));
-    assert!(line.starts_with("$1.00 · 5h"), "{line}");
-    assert!(!line.contains("today"), "{line}");
+    assert_eq!(home.line(&paid_session("b", 1.0)), "$1.00 · Opus 5.5");
+}
+
+#[test]
+fn api_key_session_shows_no_subscription_limits() {
+    // A session billed by API key spends none of the subscription a login on
+    // the same machine has: its limits would only mislead
+    let (api, _) = usage_server(&usage(37.0, 26.0, &[("Fable", 64.0)]));
+    let mut home = Home::new();
+    home.1 = api;
+    home.keep(&json!({"scoped": [{"name": "Fable", "used_percentage": 64.0}]}));
+    let reset = Timestamp::now().as_second() + 3 * 86_400;
+    home.line(&event("a", 1000, 5.0, reset));
+    assert_eq!(home.line(&paid_session("b", 1.0)), "$1.00 · Opus 5.5");
 }
 
 #[test]
