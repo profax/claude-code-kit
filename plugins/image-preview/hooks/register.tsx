@@ -561,7 +561,7 @@ export const register: Register = (on) => {
   // transcript's order. Under a sent prompt the engine lists the images, a `⎿ [Image #N]` to a
   // row: each gets an unpainted chip over it, so the engine's row shows as it was.
   on('ui.render', { component: [...TRANSCRIPT] }, async ($, e, next) => {
-    if (e.surface !== 'terminal' || e.viewport?.isFullscreen === false) return next(e)
+    if (e.surface !== 'terminal' || e.viewport?.isFullscreen !== true) return next(e)
     if (ledger.note(e)) $.ui.invalidate('ui.render')
     if (e.component !== 'UserMessage') return float($, e, await next(e))
     const ids = e.props.origin.kind === 'composer' ? idsIn(e.props.text) : []
@@ -606,7 +606,7 @@ export const register: Register = (on) => {
   // The draft's images as chips above the prompt box, and the card one of them opened.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // Off fullscreen the terminal reports no pointer: there is nothing to hover with.
-    if (e.surface !== 'terminal' || e.props.hasSurvey || e.viewport?.isFullscreen === false) return next(e)
+    if (e.surface !== 'terminal' || e.props.hasSurvey || e.viewport?.isFullscreen !== true) return next(e)
     const [ids, now] = await Promise.all([read($, draft), read($, shown)])
     const inBand = now && now.host === null && now.edge !== 'window' ? now.id : undefined
     if (ids.length === 0 && inBand === undefined) return next(e)
