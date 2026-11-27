@@ -4,8 +4,9 @@
 import type { FsStat } from 'claude-code'
 
 import { nameOf } from './paths'
+import { printable } from './printable'
 
-/** What the card shows of a file: its lines from `first` on, as written. */
+/** What the card shows of a file: its lines from `first` on, control characters marked. */
 export type Excerpt = { first: number; source: string; rows: number }
 
 // Lines shown before the one the path names (a third of the card at most), what a tab becomes,
@@ -60,8 +61,8 @@ export function isRunnable (path: string, kind: FsStat['kind'] | undefined) {
 
 /**
  * `rows` lines of `text`: the first ones, or from a few before `line`. Tabs become spaces, the
- * shared indent is dropped, a long line is cut. Nothing for an empty file or for what is not text
- * (a NUL).
+ * shared indent is dropped, a long line is cut, a control character is U+FFFD. Nothing for an empty
+ * file or for what is not text (a NUL).
  */
 export function excerptOf (text: string, line: number | undefined, rows: number): Excerpt | undefined {
   if (text.trim() === '' || text.includes('\u0000') || (text.slice(0, 4096).match(/�/g)?.length ?? 0) > 8) return undefined
@@ -72,5 +73,5 @@ export function excerptOf (text: string, line: number | undefined, rows: number)
   const shown = all.slice(first - 1, first - 1 + rows).map(row => row.replaceAll('\t', TAB).trimEnd())
   while (shown.length > 1 && shown.at(-1) === '' && first + shown.length - 1 !== mark) shown.pop()
   const indent = Math.min(...shown.filter(row => row !== '').map(row => row.length - row.trimStart().length))
-  return { first, source: shown.map(row => row.slice(indent).slice(0, LINE_CHARS)).join('\n'), rows: shown.length }
+  return { first, source: printable(shown.map(row => row.slice(indent).slice(0, LINE_CHARS)).join('\n')), rows: shown.length }
 }

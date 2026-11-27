@@ -7,6 +7,7 @@ import type { Excerpt } from './code'
 import { blocks, inline, items, markerOf } from './markdown'
 import type { Item, Run } from './markdown'
 import { lineOf, pathOfSpan, pathsIn, resolve } from './paths'
+import { printable } from './printable'
 
 type Engine = EngineInterface
 
@@ -83,7 +84,8 @@ function link (run: Run, found: { start: number; end: number; link: number }[]):
  * draws the other blocks and what lies between. Null when no path leads anywhere: the engine draws
  * the reply.
  */
-export async function planOf ($: Engine, text: string): Promise<Plan | null> {
+export async function planOf ($: Engine, reply: string): Promise<Plan | null> {
+  const text = printable(reply)
   // A reply names paths from the project's root, or from the folder the shell has moved to: both
   // are tried.
   const cwd = await $.session.cwd()

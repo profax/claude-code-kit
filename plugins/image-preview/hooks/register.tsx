@@ -6,6 +6,7 @@ import { atom, memberOf, read, update } from 'claude-code'
 import type { Elements, EngineInterface, Register, RenderElement } from 'claude-code'
 
 import { fit, parseBmp, toCells } from './pixels'
+import { printable } from './printable'
 import { sizeOf } from './size'
 import { forgetSystem, show, systemOf } from './system'
 import type { System } from './system'
@@ -321,7 +322,7 @@ function closeWindow () {
 function card ({ Box, Image, Raster, Text }: Ui, all: Record<string, Picture>, id: number, bounds: Bounds) {
   const label = `[Image #${id}]`
   const picture = all[id]
-  const line = (text: string, width: number) => <Text dimColor wrap="truncate-end">{text.padEnd(width)}</Text>
+  const line = (text: string, width: number) => <Text dimColor wrap="truncate-end">{printable(text).padEnd(width)}</Text>
   if (!picture || (!('error' in picture) && !thumbs.has(id))) return line(`${label} loading…`, bounds.columns)
   if ('error' in picture) return line(`${label} no preview: ${picture.error}`, bounds.columns)
 
