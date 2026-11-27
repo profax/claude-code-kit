@@ -51,6 +51,36 @@ test('a tool group the engine drew first under its tool\'s id counts once while 
   expect(noted.placeOf(1, 'm-1/sent:1', 'm-1')).toEqual({ id: 1, target: 'm-1/sent:1', host: 'r-2', rows: 17, edge: 'last' })
 })
 
+test('rows drawn a block at a time, the newest block first, stand in the transcript\'s order', () => {
+  const noted = new Ledger()
+  noted.screenRows = 40
+  const id = (n: number) => `0000000${n}-aaaa-4bbb-8ccc-000000000000`
+  const message = (n: number, role: 'user' | 'assistant', toolUses: string[] = []) =>
+    ({ role, text: '', uuid: `0000000${n}-aaaa-4bbb-8ccc-${String(n).padStart(12, '1')}`, toolUses: toolUses.map(tool_use_id => ({ tool_use_id, tool: 'Bash', input: {} })) })
+  // As Claude Code 2.1.332 drew a copy of a session when it opened: the screen's block, then the
+  // block above it. A prompt queued while a turn ran is no message of the transcript, nor is a
+  // turn's duration row; each comes right after the row drawn before it.
+  noted.note(row(id(6), 'UserMessage', { first: 0, last: 1, of: 2 }, 'yes'))
+  noted.note(row(id(7), 'AssistantMessage', { first: 0, last: 1, of: 5 }))
+  noted.note(row('toolu_01Queue', 'ToolUse', null))
+  noted.note(row('queued-1', 'UserMessage', null, 'and this'))
+  noted.note(row(id(9), 'AssistantMessage', null))
+  noted.note(row('turn-2', 'TurnDuration', null))
+  noted.note(row(id(1), 'AssistantMessage', null))
+  noted.note(row('turn-0', 'TurnDuration', { first: 0, last: 1, of: 2 }))
+  noted.note(row(id(2), 'UserMessage', { first: 0, last: 1, of: 2 }, '[Image #1]'))
+  noted.note(row(id(3), 'AssistantMessage', { first: 0, last: 2, of: 3 }))
+  noted.note(row(`collapsed-${id(4)}`, 'ToolGroup', { first: 0, last: 1, of: 2 }))
+  noted.note(row(id(5), 'AssistantMessage', { first: 0, last: 3, of: 4 }))
+  noted.note(row('turn-1', 'TurnDuration', { first: 0, last: 1, of: 2 }))
+  noted.learn([message(1, 'assistant'), message(2, 'user'), message(3, 'assistant'), message(4, 'assistant'), message(5, 'assistant'), message(6, 'user'), message(7, 'assistant'), message(8, 'assistant', ['toolu_01Queue']), message(9, 'assistant')])
+  // Above the image prompt only the duration row before it and its own empty top row; under it its
+  // turn, the next prompt and the start of the reply: 3 + 2 + 4 + 2 + 2 + 2.
+  expect(noted.placeOf(1, `${id(2)}/sent:1`, id(2))).toEqual({ id: 1, target: `${id(2)}/sent:1`, host: id(7), rows: 15, edge: 'last' })
+  expect([...noted.order()].sort((a, b) => a[1] - b[1]).map(([requestId]) => requestId))
+    .toEqual([id(1), 'turn-0', id(2), id(3), `collapsed-${id(4)}`, id(5), 'turn-1', id(6), id(7), 'toolu_01Queue', 'queued-1', id(9), 'turn-2'])
+})
+
 test('a sent prompt\'s card that fits neither side has no place', () => {
   const noted = ledger(10)
   noted.note(row('m-1', 'UserMessage', { first: 0, last: 1, of: 2 }, '[Image #1]'))
