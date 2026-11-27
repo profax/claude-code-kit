@@ -102,7 +102,9 @@ enum Seen {
 /// an idle session would bring back a window that has already been replaced.
 /// One subscription has one upcoming reset, so a fresh reading with another
 /// future reset means the login changed and the kept reading belongs to the
-/// previous one.
+/// previous one. Within one window a session only raises the percentage: its
+/// last response may be older than the server's answer, and a limit reset
+/// early comes down through the server, which `absorb` always takes.
 fn newer(a: &Value, b: &Value, seen: Seen, now: i64) -> bool {
     let reset = |v: &Value| v["resets_at"].as_i64().unwrap_or(0);
     if b.is_null() {
@@ -112,16 +114,8 @@ fn newer(a: &Value, b: &Value, seen: Seen, now: i64) -> bool {
         return false;
     }
     if reset(a) == reset(b) {
-        // A session gives whole percents with the fraction cut off, the
-        // server gives the fraction: 98 after 98.6 is the same reading.
-        let used = |v: &Value| v["used_percentage"].as_f64();
-        if let (Some(fresh), Some(kept)) = (used(a), used(b))
-            && fresh.fract() == 0.0
-            && (fresh..fresh + 1.0).contains(&kept)
-        {
-            return false;
-        }
-        return a != b;
+        let used = |v: &Value| v["used_percentage"].as_f64().unwrap_or(0.0);
+        return used(a) > used(b);
     }
     reset(a) > reset(b) || reset(a) > now
 }
