@@ -149,6 +149,17 @@ fn remember(kept: &mut Value, event: &Value, now: i64) -> Seen {
 /// `may_ask`, the server's answer. Returns whether the session's data has
 /// subscription limits.
 pub fn update(kept: &mut Value, event: &Value, now: i64, may_ask: bool) -> bool {
+    let (has_limits, is_due) = merge(kept, event, now, may_ask);
+    if is_due && let Some(token) = login::token(now) {
+        ask(kept, &token, now);
+    }
+    has_limits
+}
+
+/// Merges the session's reading into the store. Returns whether the session's
+/// data has subscription limits, and whether the server is to be asked now,
+/// which counts as asking: the next session waits `ASK_EVERY` from here.
+fn merge(kept: &mut Value, event: &Value, now: i64, may_ask: bool) -> (bool, bool) {
     let has_limits = WINDOWS
         .iter()
         .any(|(window, _, _)| event["rate_limits"][window]["used_percentage"].is_number());
@@ -170,13 +181,11 @@ pub fn update(kept: &mut Value, event: &Value, now: i64, may_ask: bool) -> bool 
     let due = kept["asked_at"]
         .as_i64()
         .is_none_or(|at| now.saturating_sub(at) >= ASK_EVERY);
-    if may_ask && (!has_limits || seen != Seen::Same) && due {
+    let is_due = may_ask && (!has_limits || seen != Seen::Same) && due;
+    if is_due {
         kept["asked_at"] = json!(now);
-        if let Some(token) = login::token(now) {
-            ask(kept, &token, now);
-        }
     }
-    has_limits
+    (has_limits, is_due)
 }
 
 #[cfg(test)]
@@ -204,6 +213,33 @@ mod tests {
         assert!(!newer(&at(100, 99.0), &at(200, 1.0), Seen::Renewed, 150));
         // an empty store gives way to any reading
         assert!(newer(&at(100, 0.0), &Value::Null, Seen::Same, 50));
+    }
+
+    #[test]
+    fn the_server_is_asked_by_a_new_or_working_session_once_in_a_while() {
+        let event = |api: u64| {
+            json!({"session_id": "a", "cost": {"total_api_duration_ms": api},
+                   "rate_limits": {"seven_day": at(10_000, 5.0)}})
+        };
+        let mut kept = json!({});
+        assert_eq!(merge(&mut kept, &event(1), 0, true), (true, true));
+        // the same session idle, then working again before ASK_EVERY is up
+        assert_eq!(merge(&mut kept, &event(1), ASK_EVERY, true), (true, false));
+        assert_eq!(
+            merge(&mut kept, &event(2), ASK_EVERY - 1, true),
+            (true, false)
+        );
+        assert_eq!(merge(&mut kept, &event(3), ASK_EVERY, true), (true, true));
+        // a session before its first response has no numbers and asks
+        assert_eq!(
+            merge(&mut kept, &json!({}), 2 * ASK_EVERY, true),
+            (false, true)
+        );
+        // without the store's lock no session asks
+        assert_eq!(
+            merge(&mut kept, &event(4), 3 * ASK_EVERY, false),
+            (true, false)
+        );
     }
 
     #[test]
