@@ -260,6 +260,17 @@ mod tests {
     }
 
     #[test]
+    fn a_whole_session_number_keeps_the_servers_finer_one() {
+        // the server said 98.6 (shown as 99), then a session reports the
+        // same week as a whole 98: the shown number must not drop to 98
+        assert!(!newer(&at(100, 98.0), &at(100, 98.6), Seen::Renewed, 50));
+        assert!(!newer(&at(100, 98.0), &at(100, 98.0), Seen::Renewed, 50));
+        // past the server's number, or a reset limit, still replaces it
+        assert!(newer(&at(100, 99.0), &at(100, 98.6), Seen::Renewed, 50));
+        assert!(newer(&at(100, 0.0), &at(100, 98.6), Seen::Renewed, 50));
+    }
+
+    #[test]
     fn other_subscription_replaces_kept_week() {
         // the login changed to a subscription whose week resets earlier
         let before = at(1_793_570_400, 94.0);
