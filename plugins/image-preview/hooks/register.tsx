@@ -8,7 +8,7 @@ import type { Elements, EngineInterface, Register, RenderElement } from 'claude-
 import { fit, parseBmp, toCells } from './pixels'
 import { forgetSystem, show, systemOf } from './system'
 import type { System } from './system'
-import { Ledger } from './ledger'
+import { Ledger, TRANSCRIPT } from './ledger'
 import { forgetReaders, saidBy, write } from './readers'
 import type { Row } from './ledger'
 import { idsIn, PROMPT_AT, tokensOn } from './tokens'
@@ -562,7 +562,7 @@ export const register: Register = (on) => {
   // One hook notes every row, so that rows drawn together (after a reload) come in the
   // transcript's order. Under a sent prompt the engine lists the images, a `⎿ [Image #N]` to a
   // row: each gets an unpainted chip over it, so the engine's row shows as it was.
-  on('ui.render', { component: ['UserMessage', 'AssistantMessage', 'ToolUse', 'ToolResult', 'ToolGroup', 'CommandOutput', 'TurnDuration', 'InfoNotice'] }, async ($, e, next) => {
+  on('ui.render', { component: [...TRANSCRIPT] }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.viewport?.isFullscreen === false) return next(e)
     if (ledger.note(e)) $.ui.invalidate('ui.render')
     if (e.component !== 'UserMessage') return float($, e, await next(e))

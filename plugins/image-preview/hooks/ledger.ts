@@ -8,7 +8,8 @@ import type { Shown } from '../types'
 type RenderOf<C extends string> = Extract<EventOf['ui.render'], { component: C, surface: 'terminal' }>
 
 /** The transcript rows: a card floats over the rows above the end of one of them. */
-export type Row = RenderOf<'UserMessage' | 'AssistantMessage' | 'ToolUse' | 'ToolResult' | 'ToolGroup' | 'CommandOutput' | 'TurnDuration' | 'InfoNotice'>
+export const TRANSCRIPT = ['UserMessage', 'AssistantMessage', 'ToolUse', 'ToolResult', 'ToolGroup', 'CommandOutput', 'TurnDuration', 'InfoNotice'] as const
+export type Row = RenderOf<(typeof TRANSCRIPT)[number]>
 type OnScreen = NonNullable<Row['props']['onScreen']>
 
 /**

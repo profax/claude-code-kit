@@ -1,8 +1,8 @@
 // The paths in a reply become links: under the pointer the terminal shows a card by the path (name,
 // size, age, and for code its first lines), a click shows the path in the file manager, and with
-// Alt opens it, unless it is a program or a script. Terminal only. Based on quick-peek from better-claude (MIT, ../LICENSE), without
-// its windows.
-import type { Elements, EngineInterface, EventOf, Register, RenderElement } from 'claude-code'
+// Alt opens it, unless it is a program or a script. Terminal only. Based on quick-peek from
+// better-claude (MIT, ../LICENSE), without its windows.
+import type { Elements, EngineInterface, Register, RenderElement } from 'claude-code'
 
 import { isRunnable } from './code'
 import { widthOf, wrap } from './markdown'
@@ -10,54 +10,24 @@ import type { Row } from './markdown'
 import { nameOf } from './paths'
 import { forgetPlans, planOf, statOf } from './plan'
 import type { DrawnItem, Plan, Target } from './plan'
+import { Ledger, TRANSCRIPT } from './ledger'
+import type { Place, Spot, Transcript } from './ledger'
 import { forgetSystem, show } from './system'
 
 type Engine = EngineInterface
 type Ui = Elements['terminal']
-const TRANSCRIPT = ['UserMessage', 'AssistantMessage', 'ToolUse', 'ToolResult', 'ToolGroup', 'CommandOutput', 'TurnDuration', 'InfoNotice'] as const
-type Transcript = Extract<EventOf['ui.render'], { component: (typeof TRANSCRIPT)[number], surface: 'terminal' }>
 type Message = Extract<Transcript, { component: 'AssistantMessage' }>
-type OnScreen = NonNullable<Transcript['props']['onScreen']>
-
-/**
- * A transcript row: its number among the rows in the order first drawn, how many rows had been
- * first drawn by its latest drawing, whether it is a prompt from the batch a session starts with,
- * and which of its lines are on screen.
- */
-type Seen = { component: Transcript['component']; seen: number; drawnAt: number; isBatchPrompt: boolean; onScreen: OnScreen | null | undefined }
-/**
- * Where a path's card goes: how many lines its top is from the path's line (negative is above the
- * path) and how many of the file's lines it holds.
- */
-type Place = { top: number; lines: number }
-/**
- * A link in a reply: how many of the reply's lines are above it at the least, and how many of the
- * file's lines its card wants. The plugin cannot tell how tall the engine's Markdown is and counts
- * each of its blocks as one line.
- */
-type Spot = { above: number; lines: number }
 
 const BULLET = '●'
 const BULLET_COLUMNS = 2
 const CARD_COLUMNS = 100
-// Above the first transcript row is the logo; below the last, the prompt box with its hints and the
-// status line.
-const HEADER_ROWS = 5
-const BOTTOM_ROWS = 7
-const MIN_BOTTOM_ROWS = 4
 
-// The transcript rows by requestId, and the replies with links: where their links are, how far off
-// the count of lines above them may be, and where their cards stand now.
-const seen = new Map<string, Seen>()
+// What the plugin knows of the transcript rows, and the replies with links: where their links are,
+// how far off the count of lines above them may be, and where their cards stand now.
+const ledger = new Ledger()
 const linked = new Map<string, { spots: Spot[]; slack: number; placed: string; cards: Card[]; copied: string }>()
 // The hover group of each card, short: a group's name holds 64 characters at most.
 const scopes = new Map<string, string>()
-let seenRows = 0
-let screenRows = 40
-// The module loads when a session starts or on a reload, and the engine draws every row at once.
-// It draws the prompts of such a batch apart from the rest, so their place among the rows is not
-// known.
-let isBatching = true
 
 // What the debug log has been told already: a failure that stays would be written at every
 // drawing of a reply. A hundred distinct ones are plenty to go on.
@@ -71,10 +41,9 @@ function logOnce ($: Engine, text: string) {
 }
 
 function forget () {
-  seen.clear()
+  ledger.clear()
   linked.clear()
   scopes.clear()
-  isBatching = true
 }
 
 const sizeOf = (bytes: number) =>
@@ -92,99 +61,7 @@ function cardOf (target: Target) {
   return ` ${name} · ${what} · ${ago(target.stat.mtimeMs)} · click: show in file manager `
 }
 
-/** Notes a transcript row before the first await, so in the transcript's order; true if it has moved. */
-function note (e: Transcript) {
-  if (e.viewport) screenRows = e.viewport.rows
-  const onScreen = e.props.onScreen
-  const row = seen.get(e.requestId)
-  if (!row) {
-    seen.set(e.requestId, { component: e.component, seen: seenRows++, drawnAt: seenRows, isBatchPrompt: isBatching && e.component === 'UserMessage', onScreen })
-    return true
-  }
-  row.drawnAt = seenRows
-  if (row.onScreen?.first === onScreen?.first && row.onScreen?.last === onScreen?.last && row.onScreen?.of === onScreen?.of && (row.onScreen === null) === (onScreen === null)) return false
-  row.onScreen = onScreen
-  return true
-}
-
-/**
- * A row the engine drew under a temporary id and then replaced: a prompt before it is stored
- * (`placeholder`, replaced by the very next row) and a tool group until its turn ends
- * (`collapsed-toolu_…`). Its last place on screen would inflate the count of lines.
- */
-function isReplaced (requestId: string, row: Seen) {
-  if (requestId === 'placeholder') return seenRows > row.drawnAt
-  if (!requestId.startsWith('collapsed-toolu_')) return false
-  for (const other of seen.values()) if (other.component === 'TurnDuration' && other.seen >= row.drawnAt) return true
-  return false
-}
-
-/**
- * How many screen lines there are at the least above the link's line and below it, or undefined
- * when the engine does not say where the reply is. A row that cannot be put above or below the
- * reply for certain counts on neither side: undercounting moves the card to the other side or
- * shortens it, overcounting would lay it over the path.
- */
-function roomOf (requestId: string, above: number, slack: number) {
-  const me = seen.get(requestId)
-  const at = me?.onScreen
-  if (!me || !at) return undefined
-  let before = 0
-  let after = 0
-  let all = 0
-  let isFull = false
-  for (const [id, row] of seen) {
-    const shown = row.onScreen
-    if (shown === undefined || isReplaced(id, row)) continue
-    // A row off screen, or one cut at the top, means the transcript fills the screen and sits at
-    // its foot.
-    if (shown === null || shown.first > 0) isFull = true
-    if (shown === null) continue
-    const rows = shown.last - shown.first + 1
-    all += rows
-    if (id === requestId || row.isBatchPrompt) continue
-    // A row cut at the top is the top one on screen and a row cut at the bottom the lowest one,
-    // whenever they were drawn.
-    if (shown.first > 0 || (shown.last === shown.of - 1 && row.seen < me.seen)) before += rows
-    else after += rows
-  }
-  // More lines than the screen holds: the engine has dropped some noted rows without saying so (a
-  // rewind), and no row but the reply's own can be trusted.
-  if (all + (isFull ? 0 : HEADER_ROWS) > screenRows - MIN_BOTTOM_ROWS) {
-    before = 0
-    after = 0
-    isFull = true
-  }
-  // A short transcript sits at the top, with nothing under it down to the prompt box; one line is
-  // kept spare.
-  const free = isFull ? 0 : Math.max(0, screenRows - BOTTOM_ROWS - HEADER_ROWS - all - 1)
-  const up = Math.max(0, above - at.first) + (at.first > 0 ? 0 : before + (isFull ? 0 : HEADER_ROWS))
-  const down = Math.max(0, at.last - above - slack) + (at.last < at.of - 1 ? 0 : after + free)
-  // Rows drawn after the reply, and the reply's own lines below the path, paint over a card under
-  // the path: the only clear room there is below the transcript's last line.
-  const under = { top: at.of - above + after, rows: Math.max(0, free - slack) }
-  return { up, down, under }
-}
-
-/**
- * The card goes above the path, and where it does not fit there, below: under the end of the
- * transcript, or with no room there right under the path, where the rows drawn after the path draw
- * it again over themselves (`copiesIn`). Fitting on neither side, it takes the larger one, its
- * heading and as many of the file's lines as fit. Above the path when the reply's place on screen
- * is not known.
- */
-function placeOf (requestId: string, spot: Spot, slack: number): Place {
-  const rows = 1 + spot.lines
-  const room = roomOf(requestId, spot.above, slack)
-  if (!room || room.up >= rows) return { top: -rows, lines: spot.lines }
-  if (room.under.rows >= rows) return { top: room.under.top, lines: spot.lines }
-  if (room.down >= rows) return { top: 1, lines: spot.lines }
-  const isUp = room.up >= room.down
-  const held = Math.max(1, isUp ? room.up : room.down)
-  return { top: isUp ? -held : 1, lines: held - 1 }
-}
-
-const placedOf = (requestId: string, spots: Spot[], slack: number) => JSON.stringify(spots.map(spot => placeOf(requestId, spot, slack)))
+const placedOf = (requestId: string, spots: Spot[], slack: number) => JSON.stringify(spots.map(spot => ledger.placeOf(requestId, spot, slack)))
 
 /**
  * A row has moved: the replies whose cards now belong elsewhere are drawn again. The engine does
@@ -199,26 +76,7 @@ function follow ($: Engine, requestId: string) {
   }
 }
 
-/**
- * The rows drawn after a reply, each with how many lines there are from the reply's foot to the
- * row's own foot: the rows one under another down the screen, none off it and none cut at its top.
- * Empty while the reply's foot is not on screen.
- */
-function after (requestId: string) {
-  const me = seen.get(requestId)
-  const reach: { id: string; rows: number; foot: number }[] = []
-  if (!me?.onScreen || me.onScreen.last !== me.onScreen.of - 1) return reach
-  let foot = 0
-  for (const [id, row] of seen) {
-    if (row.seen <= me.seen || row.isBatchPrompt || row.onScreen === undefined || isReplaced(id, row)) continue
-    if (row.onScreen === null || row.onScreen.first > 0) break
-    foot += row.onScreen.of
-    reach.push({ id, rows: row.onScreen.of, foot })
-  }
-  return reach
-}
-
-const reachOf = (requestId: string) => JSON.stringify(after(requestId))
+const reachOf = (requestId: string) => JSON.stringify(ledger.after(requestId))
 
 /**
  * The cards that reach over the row `requestId`, drawn again by it: a row paints over every card
@@ -228,7 +86,7 @@ const reachOf = (requestId: string) => JSON.stringify(after(requestId))
 function copiesIn (ui: Ui, requestId: string) {
   const copies: RenderElement[] = []
   for (const [id, reply] of linked) {
-    const foot = id === requestId ? { rows: Infinity, foot: 0 } : after(id).find(row => row.id === requestId)
+    const foot = id === requestId ? { rows: Infinity, foot: 0 } : ledger.after(id).find(row => row.id === requestId)
     if (!foot) continue
     for (const card of reply.cards) {
       if (!card.isExact) continue
@@ -400,7 +258,7 @@ function draw (ui: Ui, e: Message, plan: Plan) {
   const counted: Layout = { requestId: e.requestId, row: 0, x: BULLET_COLUMNS, place: spot => ({ top: -1 - spot.lines, lines: spot.lines }), spots: [], cards: [] }
   drawWith(ui, e, plan, counted)
   const slack = Math.max(0, (e.props.onScreen?.of ?? 0) - counted.row)
-  const layout: Layout = { requestId: e.requestId, row: 0, x: BULLET_COLUMNS, place: spot => placeOf(e.requestId, spot, slack), spots: [], cards: [] }
+  const layout: Layout = { requestId: e.requestId, row: 0, x: BULLET_COLUMNS, place: spot => ledger.placeOf(e.requestId, spot, slack), spots: [], cards: [] }
   const drawn = drawWith(ui, e, plan, layout)
   for (const card of layout.cards) card.below = layout.row - 1 - card.line
   linked.set(e.requestId, { spots: layout.spots, slack, placed: placedOf(e.requestId, layout.spots, slack), cards: layout.cards, copied: reachOf(e.requestId) })
@@ -467,7 +325,7 @@ export const register: Register = (on) => {
   // Prompts drawn after the first one is sent are drawn by the engine in their place.
   on('prompt.submit', async ($, e, next) => {
     const result = await next(e)
-    isBatching = false
+    ledger.isBatching = false
     return result
   }).catch(($, e, next) => next(e))
 
@@ -483,7 +341,7 @@ export const register: Register = (on) => {
   // transcript rows are only noted: they tell how much room there is above a link and below it.
   on('ui.render', { component: [...TRANSCRIPT] }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.viewport?.isFullscreen !== true) return next(e)
-    if (note(e)) follow($, e.requestId)
+    if (ledger.note(e)) follow($, e.requestId)
     const ui = $.ui.resolve(e)
     const drawn = await drawRow($, e, next)
     const copies = copiesIn(ui, e.requestId)
