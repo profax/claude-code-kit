@@ -58,6 +58,9 @@ const WINDOW_LIFE = 120
 // (Ubuntu has the latter, NixOS both; on Windows `convert` is a disk tool), then what the system
 // has of its own, sips on macOS and PowerShell with System.Drawing on Windows and under WSL.
 type Tool = 'magick' | 'convert' | 'sips' | 'powershell'
+// What ImageMagick may take to read a pasted picture: a crafted one could otherwise fill the
+// memory or the disk, or keep it busy for good.
+const LIMITS = ['-limit', 'memory', '256MiB', '-limit', 'map', '512MiB', '-limit', 'area', '128MP', '-limit', 'disk', '1GiB', '-limit', 'time', '30']
 type System = 'linux' | 'macos' | 'windows' | 'wsl'
 const TOOLS: Record<System, Tool[]> = {
   linux: ['magick', 'convert'],
@@ -279,7 +282,7 @@ async function reading ($: Engine, name: Tool, file: string, dir: string, out: s
   }
   if (name === 'powershell') return readerCommand(file, dir, out, format, side, await $.env.get('WSLENV'))
   const size = side && `${side.replace('>', '')}x${side}`
-  return { argv: [name, file, ...(size ? ['-resize', size] : []), `${format === 'bmp' ? 'BMP3' : 'PNG'}:${join(dir, out)}`] }
+  return { argv: [name, ...LIMITS, file, ...(size ? ['-resize', size] : []), `${format === 'bmp' ? 'BMP3' : 'PNG'}:${join(dir, out)}`] }
 }
 
 type Run = { exitCode: number; stderr: string }
