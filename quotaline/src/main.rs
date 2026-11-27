@@ -208,13 +208,28 @@ fn line() {
     } else {
         vec![]
     };
+    // A session billed by API key spends none of the subscription a login
+    // on the machine may have: its limits would only mislead. Before its
+    // first response a subscription session has no limits in its data
+    // either, so only an answered session is taken for one billed by key
+    let answered = event["cost"]["total_api_duration_ms"]
+        .as_f64()
+        .is_some_and(|ms| ms > 0.0);
+    let limits: Vec<String> = if paid && answered {
+        vec![]
+    } else {
+        limits::WINDOWS
+            .iter()
+            .filter_map(|(window, name, length)| {
+                render::window(name, &kept[*window], now, true, *length)
+            })
+            .chain(render::scoped(&kept, now))
+            .collect()
+    };
     let parts: Vec<String> = render::context(&event)
         .into_iter()
         .chain(money)
-        .chain(limits::WINDOWS.iter().filter_map(|(window, name, length)| {
-            render::window(name, &kept[*window], now, true, *length)
-        }))
-        .chain(render::scoped(&kept, now))
+        .chain(limits)
         .chain(render::model(&event))
         .chain((!saved).then(|| render::dim("can't write cache")))
         .collect();

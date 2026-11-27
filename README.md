@@ -222,8 +222,9 @@ one gets itself.
 A session billed by API key shows its cost and, next to it, the day's total
 for all such sessions of the profile on the machine, as in `$0.50 · today $1.74`. The total
 is left out while it equals the session's cost. Both are Claude Code's
-estimates at list prices, not an invoice. If the machine also has a
-subscription login, the line shows that subscription's limits as well.
+estimates at list prices, not an invoice. Such a session spends none of a
+subscription, so once it has its first response the line leaves out the
+limits of any subscription login on the machine.
 
 ## What it reads, writes and sends
 

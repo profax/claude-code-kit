@@ -827,13 +827,10 @@ fn window_that_has_reset_shows_zero_for_one_length_of_it() {
     };
     let home = Home::new();
     home.keep(&kept(-60));
-    assert_eq!(
-        home.line(&paid_session("a", 1.238)),
-        "$1.24 · 5h 0% · week 0% · Opus 5.5"
-    );
+    assert_eq!(home.line(&fresh_session("a")), "5h 0% · week 0%");
     let home = Home::new();
     home.keep(&kept(60));
-    assert_eq!(home.line(&paid_session("a", 1.238)), "$1.24 · Opus 5.5");
+    assert_eq!(home.line(&fresh_session("a")), "limits: no data");
 }
 
 #[test]
