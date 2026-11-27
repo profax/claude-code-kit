@@ -340,49 +340,29 @@ test('after /clear the new session reads its images again', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /^\[Image #1\] no preview: can't find this session's image folder/ })).toBeDefined()
 })
 
-test('over a transcript that fills the rows, a chip opens its card over the lowest row, the band left alone', async ($, on) => {
+test('over a transcript that fills the rows, a chip opens its card above the prompt box, over no row of the transcript', async ($, on) => {
+  // A card over the transcript would cut the text beside it.
   const w = world(on, { draft: 'and this? [Image #1]' })
   await startSession($)
   await w.clock.settle()
   const first = await sent($, 'hello', { first: 0, last: 19, of: 20 })
   const last = await reply($, 'a-1', { first: 0, last: 3, of: 4 })
   const ui = await band($)
-  expect(await last.find({ key: 'float-1' })).toBeUndefined()
 
   await point(ui, 'chip:1')
-  expect(keyed(await last.drawn(), 'float-1')).toMatchObject({ props: { position: 'absolute', bottom: 0, left: 0 } })
-  expect(await last.find({ key: 'image-1' })).toMatchObject({ type: 'Raster' })
+  expect(await ui.find({ key: 'image-1' })).toMatchObject({ type: 'Raster' })
+  expect(await last.find({ key: 'float-1' })).toBeUndefined()
   expect(await first.find({ key: 'float-1' })).toBeUndefined()
-  expect(await ui.find({ key: 'image-1' })).toBeUndefined()
+
+  // New rows and a scroll leave it where it is.
+  const after = await reply($, 'a-2', { first: 0, last: 5, of: 6 })
+  await reply($, 'a-3', null)
+  await w.clock.advance(500)
+  expect(await after.find({ key: 'float-1' })).toBeUndefined()
+  expect(await ui.find({ key: 'image-1' })).toMatchObject({ type: 'Raster' })
 
   await point(ui, 'chip:1', 'leave')
-  expect(await last.find({ key: 'float-1' })).toBeUndefined()
-})
-
-test('the card a chip opened follows the lowest row: the row it leaves draws none', async ($, on) => {
-  const w = world(on, { draft: '[Image #1]' })
-  await startSession($)
-  await w.clock.settle()
-  await sent($, 'hello', { first: 0, last: 19, of: 20 })
-  const before = await reply($, 'a-1', { first: 0, last: 3, of: 4 })
-  await point(await band($), 'chip:1')
-  const after = await reply($, 'a-2', { first: 0, last: 5, of: 6 })
-  await w.clock.advance(500)
-
-  expect(await before.find({ key: 'float-1' })).toBeUndefined()
-  expect(await after.find({ key: 'float-1' })).toBeDefined()
-})
-
-test('scrolled up, the card stands on the last row showing of the row cut at the foot', async ($, on) => {
-  const w = world(on, { draft: '[Image #1]' })
-  await startSession($)
-  await w.clock.settle()
-  await reply($, 'a-0', null)
-  const cut = await sent($, 'hello', { first: 0, last: 9, of: 20 })
-  await reply($, 'a-1', null)
-  await point(await band($), 'chip:1')
-
-  expect(keyed(await cut.drawn(), 'float-1')).toMatchObject({ props: { position: 'absolute', bottom: 10 } })
+  expect(await ui.find({ key: 'image-1' })).toBeUndefined()
 })
 
 test('a sent prompt\'s chip opens its card just above the prompt, never over its own row', async ($, on) => {
