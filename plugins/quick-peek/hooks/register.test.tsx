@@ -353,11 +353,13 @@ test('the card of a file of code shows its first lines, colored by the engine', 
 
 test('a card writes every cell it covers, in a light theme as in a dark one', async ($, on) => {
   // The transcript shows through every cell a card leaves unwritten, and an inverse title is a
-  // black bar on a light theme.
+  // black bar on a light theme. Lines on the terminal's own background run into the transcript, so
+  // the card has the fill the theme gives a prompt.
   world(on)
   await startSession($)
   const ui = await reply($, 'Mira src/app.ts')
   const card = (await ui.findAll({ type: 'Box' })).find(box => box.props.position === 'absolute')!
+  expect(card.props.backgroundColor).toBe('userMessageBackground')
   const width = card.props.width as number
   const title = await ui.find({ type: 'Text', text: /app\.ts · / })
   expect(title!.props.inverse).toBeUndefined()
