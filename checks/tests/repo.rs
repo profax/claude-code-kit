@@ -475,3 +475,43 @@ fn the_home_check_tells_a_real_user_from_a_sample_one() {
     );
     assert_eq!(real_home("the /Users/ folder", "/Users/"), None);
 }
+
+/// CI checks the plugins on the oldest Claude Code they support; a new
+/// release could break them without anyone seeing it. A weekly run tries the
+/// newest one.
+#[test]
+fn plugins_are_tried_weekly_on_the_newest_claude_code() {
+    let path = ".github/workflows/newest-claude-code.yml";
+    assert!(root().join(path).is_file(), "{path} is missing");
+    let workflow = read(path);
+    for needed in [
+        "schedule:",
+        "cron:",
+        "@anthropic-ai/claude-code@latest",
+        "npm run validate",
+        "npm test",
+    ] {
+        assert!(workflow.contains(needed), "{path} lacks {needed:?}");
+    }
+}
+
+/// A checksum next to the archive proves nothing about where the archive
+/// came from: each one gets a signed provenance from the run that built it,
+/// and the READMEs say how to check it.
+#[test]
+fn every_archive_carries_its_provenance() {
+    let release = read(".github/workflows/release.yml");
+    for needed in [
+        "actions/attest-build-provenance@",
+        "id-token: write",
+        "attestations: write",
+    ] {
+        assert!(release.contains(needed), "release.yml lacks {needed:?}");
+    }
+    for readme in ["README.md", "README.ru.md"] {
+        assert!(
+            read(readme).contains("gh attestation verify"),
+            "{readme} doesn't say how to check the provenance"
+        );
+    }
+}
