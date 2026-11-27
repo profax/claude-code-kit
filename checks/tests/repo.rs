@@ -343,6 +343,35 @@ fn each_plugin_carries_the_license_notice() {
     );
 }
 
+/// Modules both plugins need. Each plugin installs as a folder of its own and
+/// can't import from the other, so each carries a copy, and a fix made in one
+/// copy must reach the other.
+const SHARED_MODULES: [&str; 1] = ["system.ts"];
+
+#[test]
+fn shared_modules_are_the_same_in_each_plugin() {
+    let mut wrong = Vec::new();
+    for module in SHARED_MODULES {
+        let copies: Vec<(String, Option<String>)> = plugins()
+            .into_iter()
+            .map(|plugin| format!("{plugin}/hooks/{module}"))
+            .map(|file| {
+                let text = std::fs::read_to_string(root().join(&file)).ok();
+                (file, text)
+            })
+            .collect();
+        assert!(copies.len() >= 2, "fewer than two plugins carry {module}");
+        let first = &copies[0].1;
+        if first.is_none() || copies.iter().any(|(_, text)| text != first) {
+            wrong.push(module);
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "missing or not the same in every plugin: {wrong:?}"
+    );
+}
+
 /// The anchor GitHub gives a Markdown heading: lower case, spaces as
 /// hyphens, other punctuation dropped.
 fn anchor(heading: &str) -> String {

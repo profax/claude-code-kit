@@ -9,6 +9,7 @@ import type { Excerpt } from './code'
 import { blocks, inline, items, markerOf, widthOf, wrap } from './markdown'
 import type { Item, Row, Run } from './markdown'
 import { lineOf, nameOf, pathOfSpan, pathsIn, resolve } from './paths'
+import { forgetSystem, show } from './system'
 
 type Engine = EngineInterface
 type Ui = Elements['terminal']
@@ -577,36 +578,11 @@ function swap (drawn: RenderElement, mine: RenderElement): RenderElement {
   return isSwapped ? out : mine
 }
 
-/**
- * Opens the path or selects it in the file manager: Explorer on Windows and under WSL, Finder on
- * macOS, and on Linux the manager that answers FileManager1 (Nautilus) or, where none does, the
- * path's folder opened.
- */
+/** Shows the path in the file manager, or with Alt opens it, unless it is a program or a script. */
 async function reveal ($: Engine, path: string, isAlt: boolean) {
   // A program or a script is shown, not run: a reply may name one Claude has not been asked for.
   const isOpening = isAlt && !isRunnable(path, (await statOf($, path))?.kind)
-  const run = (argv: string[]) => $.process.run(argv).catch(() => undefined)
-  // The system is told by `OS`, the distro's name and `uname`: Claude Code 2.1.325 has no
-  // `$.session.info()`, and a module that calls it does not load there at all.
-  const isWsl = (await $.env.get('WSL_DISTRO_NAME')) !== undefined
-  if (isWsl || (await $.env.get('OS')) === 'Windows_NT') {
-    const shown = isWsl ? (await run(['wslpath', '-w', path]))?.stdout.trim() : path
-    // Explorer takes the path as an argument of its own after `/select,`: quoted in one with it,
-    // it opens the Documents folder instead.
-    if (shown) await run(isOpening ? ['explorer.exe', shown] : ['explorer.exe', '/select,', shown])
-    return
-  }
-  if ((await run(['uname', '-s']))?.stdout.trim() === 'Darwin') {
-    await run(isOpening ? ['open', path] : ['open', '-R', path])
-    return
-  }
-  if (isOpening) {
-    await run(['xdg-open', path])
-    return
-  }
-  const uri = `file://${path.split('/').map(encodeURIComponent).join('/')}`
-  const shown = await run(['dbus-send', '--session', '--print-reply', '--dest=org.freedesktop.FileManager1', '/org/freedesktop/FileManager1', 'org.freedesktop.FileManager1.ShowItems', `array:string:${uri}`, 'string:'])
-  if (shown?.exitCode !== 0) await run(['xdg-open', path.slice(0, path.lastIndexOf('/')) || '/'])
+  await show($, path, !isOpening)
 }
 
 export const register: Register = (on) => {
@@ -620,6 +596,7 @@ export const register: Register = (on) => {
 
   on('session.start', async ($, e, next) => {
     forget()
+    forgetSystem()
     const result = await next(e)
     plans.clear()
     stats.clear()

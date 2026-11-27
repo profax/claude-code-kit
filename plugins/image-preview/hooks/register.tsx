@@ -6,6 +6,8 @@ import { atom, memberOf, read, update } from 'claude-code'
 import type { Elements, EngineInterface, EventOf, Register, RenderElement } from 'claude-code'
 
 import { fit, parseBmp, toCells } from './pixels'
+import { forgetSystem, show, systemOf } from './system'
+import type { System } from './system'
 import { idsIn, PROMPT_AT, tokensOn } from './tokens'
 import { readerCommand, windowCommand } from './window'
 import type { Pixels } from './pixels'
@@ -64,7 +66,6 @@ type Tool = 'magick' | 'convert' | 'sips' | 'powershell'
 // What ImageMagick may take to read a pasted picture: a crafted one could otherwise fill the
 // memory or the disk, or keep it busy for good.
 const LIMITS = ['-limit', 'memory', '256MiB', '-limit', 'map', '512MiB', '-limit', 'area', '128MP', '-limit', 'disk', '1GiB', '-limit', 'time', '30']
-type System = 'linux' | 'macos' | 'windows' | 'wsl'
 const TOOLS: Record<System, Tool[]> = {
   linux: ['magick', 'convert'],
   macos: ['magick', 'convert', 'sips'],
@@ -157,20 +158,13 @@ let detecting: Promise<void> | undefined
 
 /**
  * Learns the system, once a session: whatever builds a path or runs a program waits for it, since
- * a resumed session draws its prompts before its start is over. It is told by `OS`, the distro's
- * name and `uname`: Claude Code 2.1.325 has no `$.session.info()`, and a module that calls it does
- * not load there at all.
+ * a resumed session draws its prompts before its start is over.
  */
 function detect ($: Engine) {
-  return (detecting ??= (async () => {
-    const [os, distro] = await Promise.all([$.env.get('OS'), $.env.get('WSL_DISTRO_NAME')])
-    system = os === 'Windows_NT'
-      ? 'windows'
-      : distro !== undefined
-        ? 'wsl'
-        : (await $.process.run(['uname', '-s']).catch(() => undefined))?.stdout.trim() === 'Darwin' ? 'macos' : 'linux'
+  return (detecting ??= systemOf($).then(found => {
+    system = found
     sep = system === 'windows' ? '\\' : '/'
-  })())
+  }))
 }
 
 /**
@@ -347,19 +341,12 @@ async function load ($: Engine, id: number) {
   await update($, pictures, all => ({ ...all, [id]: picture })).catch(() => undefined)
 }
 
-/** Opens the image in the system's viewer: through Explorer on Windows and under WSL, `open` on macOS. */
+/** Opens the image in the system's viewer. */
 async function openImage ($: Engine, id: number) {
   await detect($)
   const picture = (await read($, pictures))[id]
   const file = picture && !('error' in picture) ? picture.file : await fileOf($, id)
-  if (!file) return
-  if (system === 'wsl') {
-    const path = (await $.process.run(['wslpath', '-w', file]).catch(() => undefined))?.stdout.trim()
-    if (path) await $.process.run(['explorer.exe', path]).catch(() => undefined)
-    return
-  }
-  const program = system === 'macos' ? 'open' : system === 'windows' ? 'explorer.exe' : 'xdg-open'
-  await $.process.run([program, file]).catch(() => undefined)
+  if (file) await show($, file, false)
 }
 
 /**
@@ -710,6 +697,7 @@ export const register: Register = (on) => {
     // and the engine draws none: the card would hold the picture's name alone.
     const isNative = tmux === undefined && (program === 'ghostty' || term === 'xterm-ghostty' || term === 'xterm-kitty' || kittyWindow !== undefined)
     graphics = isNative ? 'file' : /^(1|true|yes|on)$/i.test(forceImages ?? '') ? 'bytes' : 'none'
+    forgetSystem()
     detecting = undefined
     await detect($)
     tool = undefined
