@@ -3,6 +3,17 @@
 Notable changes, newest first. One version covers the whole kit: quotaline
 and both plugins.
 
+## 0.1.3 (2026-11-27)
+
+- **Both plugins**: a card no longer lies over Claude Code's logo, which is
+  not drawn again: a card that covered it left a cut-off copy at the top of
+  the screen. A size just short of a megabyte reads 1.0 MB, not 1024 KB.
+- **image-preview**: a card over the prompt counts no rows of the logo, and
+  the plugin draws only once Claude Code has said the screen is full, as
+  quick-peek does.
+- **quick-peek**: a card with no room above its path keeps its title under
+  the path.
+
 ## 0.1.2 (2026-11-27)
 
 - **image-preview**: on Windows and under WSL, the window draws a picture in
