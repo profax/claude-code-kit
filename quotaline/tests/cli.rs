@@ -311,13 +311,24 @@ fn readme_setup_sample_is_what_setup_prints() {
     fs::create_dir_all(&bin).expect("bin folder");
     let program = bin.join("quotaline");
     fs::copy(env!("CARGO_BIN_EXE_quotaline"), &program).expect("program");
-    let out = Command::new(&program)
-        .args(["--setup", "--yes"])
-        .env("HOME", &home.0)
-        .env_remove("CLAUDE_CONFIG_DIR")
-        .stdin(Stdio::null())
-        .output()
-        .expect("the program runs");
+    // A copy just written can't run while a child another test forks meanwhile
+    // still holds it open for writing: Linux says the file is busy for a moment.
+    let mut tries = 0;
+    let out = loop {
+        match Command::new(&program)
+            .args(["--setup", "--yes"])
+            .env("HOME", &home.0)
+            .env_remove("CLAUDE_CONFIG_DIR")
+            .stdin(Stdio::null())
+            .output()
+        {
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy && tries < 50 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            result => break result.expect("the program runs"),
+        }
+    };
     assert!(out.status.success(), "{out:?}");
     let printed =
         without_backup_time(&text(&out.stdout).replace(&*home.0.to_string_lossy(), "/Users/you"));
