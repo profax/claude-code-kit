@@ -775,6 +775,19 @@ test('a WebP, which GDI+ cannot read, goes through the codecs of Windows, for th
   }
 })
 
+test("the window draws in the screen's own pixels, at the size it has on a screen at 100%", () => {
+  // A process Windows takes for one that knows no scale gets its window stretched, the picture
+  // blurred: on a screen at 200% an 800-pixel picture went out as 1600 pixels drawn from 800.
+  const aware = WINDOWS.indexOf('[ImagePreviewPopup]::Sharp()')
+  expect(aware).toBeGreaterThan(-1)
+  expect(WINDOWS).toContain('SetProcessDpiAwarenessContext')
+  for (const call of ['Cursor]::Position', 'Screen]::FromPoint', 'New-Object ImagePreviewPopup']) {
+    expect(WINDOWS.indexOf(call)).toBeGreaterThan(aware)
+  }
+  expect(WINDOWS).toContain('$scale = [ImagePreviewPopup]::ScaleAt($cursor.X, $cursor.Y)')
+  expect(WINDOWS).toContain('$largest = $largest * $scale')
+})
+
 test('on Windows with ImageMagick, magick reads the picture', async ($, on) => {
   const w = world(on, { draft: '[Image #1]', platform: 'windows', env: SSH })
   await startSession($)
