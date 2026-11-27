@@ -3,6 +3,27 @@
 Notable changes, newest first. One version covers the whole kit: quotaline
 and both plugins.
 
+## 0.1.1 (unreleased)
+
+- **image-preview**: the card of a chip above the prompt always opens above
+  the prompt box, where it covers no text, instead of over the transcript.
+  ImageMagick reads a pasted picture under limits of memory, disk and time.
+  A session keeps the pixels of its last eight pictures and reads an older
+  one again when it is hovered. On Windows and under WSL, a window that fails
+  is tried again after five minutes instead of never.
+- **quick-peek**: a card writes every cell it covers, so the transcript no
+  longer shows through beside a file's lines, and its title sits on a grey
+  that reads in a light theme as in a dark one. A reply with a long run of
+  punctuation no longer holds the screen.
+- **quotaline**: a profile set by `CLAUDE_CONFIG_DIR` reads its own keychain
+  entry on macOS and keeps its numbers apart from other profiles. A keychain
+  that waits for the user no longer holds the line. When the cache folder
+  can't be written, the line ends with `can't write cache`. Names are printed
+  without control characters, and the store's files are not written through
+  links. Moved to jiff 1.0.
+- **Releases**: each archive comes with a signed provenance that
+  `gh attestation verify` checks.
+
 ## 0.1.0 (2026-11-26)
 
 First public release.
