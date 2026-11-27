@@ -346,9 +346,31 @@ test('the card of a file of code shows its first lines, colored by the engine', 
   world(on)
   await startSession($)
   const ui = await reply($, 'Mira src/app.ts y el vídeo ' + VIDEO)
-  expect(await ui.find({ type: 'Code' })).toMatchObject({ props: { source: CODE.trimEnd(), path: SOURCE, startLine: 1 } })
+  expect(await ui.find({ type: 'Code' })).toMatchObject({ props: { path: SOURCE } })
   expect(await ui.find({ key: 'card:0:0' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /app\.ts · \d+ B · \d+[smhd] ago · click: show in file manager/ })).toBeDefined()
+})
+
+test('a card writes every cell it covers, in a light theme as in a dark one', async ($, on) => {
+  // The transcript shows through every cell a card leaves unwritten, and an inverse title is a
+  // black bar on a light theme.
+  world(on)
+  await startSession($)
+  const ui = await reply($, 'Mira src/app.ts')
+  const card = (await ui.findAll({ type: 'Box' })).find(box => box.props.position === 'absolute')!
+  const width = card.props.width as number
+  const title = await ui.find({ type: 'Text', text: /app\.ts · / })
+  expect(title!.props.inverse).toBeUndefined()
+  expect(title!.props.backgroundColor).toBe('subtle')
+  expect(String(title!.text).length).toBe(width)
+  const gutter = await ui.find({ type: 'Text', text: /^ *1 \n/ })
+  const code = await ui.find({ type: 'Code' })
+  expect(code!.props.startLine).toBeUndefined()
+  const numbers = String(gutter!.text).split('\n')
+  const lines = String(code!.props.source).split('\n')
+  expect(numbers.map(number => number.trim())).toEqual(['1', '2', '3', '4', '5', '6', '7'])
+  expect(lines.map((line, i) => numbers[i]!.length + line.length)).toEqual(lines.map(() => width))
+  expect(lines.map(line => line.trimEnd())).toEqual(CODE.trimEnd().split('\n'))
 })
 
 
@@ -394,7 +416,7 @@ test('on Windows a path is a link, its card named by the file, and a click selec
   expect(await ui.find({ key: 'path:1:0' })).toMatchObject({ props: { props: { label: 'src/app.ts', path: WIN_SOURCE } } })
   expect(await ui.find({ key: 'path:2:0' })).toMatchObject({ props: { props: { label: 'README.md', path: WIN_README } } })
   expect(await ui.find({ type: 'Text', text: / borrador\.mp4 · 12\.0 MB · .* · click: show in file manager / })).toBeDefined()
-  expect(await ui.find({ type: 'Code' })).toMatchObject({ props: { path: WIN_SOURCE, startLine: 1 } })
+  expect(await ui.find({ type: 'Code' })).toMatchObject({ props: { path: WIN_SOURCE } })
 
   await ui.pointer({ type: 'down', x: 2, y: 0, button: 'left', in: 'path:0:0' })
   await ui.pointer({ type: 'up', x: 2, y: 0, button: 'left', in: 'path:0:0' })
