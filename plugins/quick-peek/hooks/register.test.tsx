@@ -304,14 +304,12 @@ test('the first reply at the top of the screen opens its card under the path, ne
   expect(await cardRows(ui)).toEqual({ top: 3, bottom: 11, lines: 7 })
 })
 
-test('a card with room on neither side keeps its title and the lines the larger side holds', async ($, on) => {
+test('a card with room on neither side keeps its title under the path, off the logo', async ($, on) => {
   world(on)
   await startSession($)
+  // A reply's one line under the logo of a screen 14 rows tall: the logo above, the prompt box below.
   const ui = await shownAt($, 'a-1', 'Mira src/app.ts', { first: 0, last: 0, of: 1 }, { ...SCREEN, rows: 14 })
-  const card = await cardRows(ui)
-  expect(card.bottom <= 0 || card.top >= 1).toBe(true)
-  expect(card.lines).toBeGreaterThan(0)
-  expect(card.lines).toBeLessThan(7)
+  expect(await cardRows(ui)).toMatchObject({ top: 1, lines: 0 })
 })
 
 test('the last reply on a full screen keeps its card over the path, whole', async ($, on) => {
