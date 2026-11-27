@@ -31,6 +31,14 @@ test('a card short of room above goes under the end of the transcript', () => {
   expect(noted.placeOf('r-1', { above: 0, lines: 8 }, 0)).toEqual({ top: 3, lines: 8 })
 })
 
+test('a card never lies over the logo: Claude Code does not draw it again, and what a card leaves there stays', () => {
+  const noted = ledger()
+  noted.note(row('r-1', 'AssistantMessage', { first: 0, last: 4, of: 5 }))
+  // Three lines above the path and the logo's five would hold 7; the three alone don't, and the
+  // card goes under the end of the transcript.
+  expect(noted.placeOf('r-1', { above: 3, lines: 6 }, 0)).toEqual({ top: 2, lines: 6 })
+})
+
 test('a card where neither side holds it takes the larger side, shortened', () => {
   const noted = ledger(20)
   noted.note(row('r-0', 'AssistantMessage', { first: 6, last: 9, of: 10 }))
