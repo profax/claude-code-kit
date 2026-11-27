@@ -8,6 +8,7 @@ import { isRunnable } from './code'
 import { widthOf, wrap } from './markdown'
 import type { Row } from './markdown'
 import { nameOf } from './paths'
+import { fit, forgetPictures } from './picture'
 import { forgetPlans, planOf, statOf } from './plan'
 import type { DrawnItem, Plan, Target } from './plan'
 import { Ledger, TRANSCRIPT } from './ledger'
@@ -22,6 +23,9 @@ type Message = Extract<Transcript, { component: 'AssistantMessage' }>
 const BULLET = '●'
 const BULLET_COLUMNS = 2
 const CARD_COLUMNS = 100
+// The most rows a picture takes on a card, and the fewest it is shown in.
+const PICTURE_ROWS = 12
+const MIN_PICTURE_ROWS = 3
 
 // What the plugin knows of the transcript rows, and the replies with links: where their links are,
 // how far off the count of lines above them may be, and where their cards stand now.
@@ -108,7 +112,9 @@ type Layout = { requestId: string; row: number; x: number; place: (spot: Spot) =
  * (`top`, `rows`), its column from the reply's left edge, and how many lines of the reply are
  * under the path's line, which is known only when no Markdown block of the engine's follows it.
  */
-type Card = { scope: string; top: number; rows: number; left: number; width: number; title: string; source?: string; first: number; path: string; line: number; below: number; isExact: boolean }
+type Card = { scope: string; top: number; rows: number; left: number; width: number; title: string; source?: string; picture?: Shown; first: number; path: string; line: number; below: number; isExact: boolean }
+/** A picture on a card: the PNG the terminal reads, and the cells it takes. */
+type Shown = { file: string; columns: number; rows: number }
 
 /** `text` with spaces after it up to `width` cells. */
 const padded = (text: string, width: number) => text + ' '.repeat(Math.max(0, width - widthOf(text)))
@@ -143,11 +149,19 @@ function scopeOf (requestId: string, link: number, part: number) {
  * pointer.
  */
 function cardBox (ui: Ui, card: Card, at: { top?: number; bottom?: number; left: number }) {
-  const { Box, Text } = ui
+  const { Box, Image, Text } = ui
+  const picture = card.picture
+  const side = picture ? card.width - picture.columns : 0
   return (
     <Box position="absolute" {...at} width={card.width} flexDirection="column" backgroundColor="userMessageBackground" display="none" hover={{ display: 'flex', scope: card.scope }}>
       <Text color="text" backgroundColor="subtle" wrap="truncate-end">{padded(card.title, card.width)}</Text>
       {card.source !== undefined && numbered(ui, card.source, card.first, card.width, card.path)}
+      {picture && (
+        <Box flexDirection="row">
+          <Image source={{ file: picture.file, format: 'png' }} columns={picture.columns} rows={picture.rows} alt=" " />
+          {side > 0 && <Text>{Array.from({ length: picture.rows }, () => ' '.repeat(side)).join('\n')}</Text>}
+        </Box>
+      )}
     </Box>
   )
 }
@@ -178,16 +192,18 @@ function drawRows (ui: Ui, rows: Row[], width: number, targets: Target[], parts:
           // onto the path itself: so `placeOf` picks where the card goes.
           const card = cardOf(target)
           const excerpt = target.code
-          const spot = { above, lines: excerpt?.rows ?? 0 }
+          const spot = { above, lines: excerpt?.rows ?? (target.picture ? PICTURE_ROWS : 0) }
           layout.spots.push(spot)
           const place = layout.place(spot)
           const source = excerpt && place.lines > 0 ? excerpt.source.split('\n').slice(0, place.lines).join('\n') : undefined
-          const cardWidth = Math.min(excerpt ? Math.max(widthOf(card), CARD_COLUMNS) : widthOf(card), width)
+          const cells = target.picture && place.lines >= MIN_PICTURE_ROWS ? fit(target.picture.width, target.picture.height, Math.min(width, CARD_COLUMNS), place.lines) : undefined
+          const picture = cells && { file: target.picture!.file, ...cells }
+          const cardWidth = Math.min(excerpt ? Math.max(widthOf(card), CARD_COLUMNS) : Math.max(widthOf(card), picture?.columns ?? 0), width)
           const left = Math.max(-at, Math.min(0, width - at - cardWidth))
           const scope = scopeOf(layout.requestId, run.link, part)
           const drawn: Card = {
-            scope, top: place.top, rows: 1 + (source === undefined ? 0 : source.split('\n').length), left: layout.x + at + left, width: cardWidth,
-            title: card, ...(source !== undefined && { source }), first: excerpt?.first ?? 1, path: target.path, line: above, below: 0, isExact: true
+            scope, top: place.top, rows: 1 + (source === undefined ? 0 : source.split('\n').length) + (picture?.rows ?? 0), left: layout.x + at + left, width: cardWidth,
+            title: card, ...(source !== undefined && { source }), ...(picture && { picture }), first: excerpt?.first ?? 1, path: target.path, line: above, below: 0, isExact: true
           }
           layout.cards.push(drawn)
           return (
@@ -317,6 +333,7 @@ export const register: Register = (on) => {
     forgetSystem()
     const result = await next(e)
     forgetPlans()
+    forgetPictures()
     return result
   })
 

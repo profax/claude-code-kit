@@ -7,12 +7,14 @@ import type { Excerpt } from './code'
 import { blocks, inline, items, markerOf } from './markdown'
 import type { Item, Run } from './markdown'
 import { lineOf, pathOfSpan, pathsIn, resolve } from './paths'
+import { drawsPictures, isPicture, pictureAt } from './picture'
+import type { Picture } from './picture'
 import { printable } from './printable'
 
 type Engine = EngineInterface
 
-/** A path in a reply that leads somewhere: where, what is there, the line it names, the card's lines. */
-export type Target = { path: string; stat: FsStat; line?: number; code?: Excerpt }
+/** A path in a reply that leads somewhere: where, what is there, the line it names, the card's lines or picture. */
+export type Target = { path: string; stat: FsStat; line?: number; code?: Excerpt; picture?: Picture }
 export type DrawnItem = { marker: string; runs: Run[]; children: DrawnItem[]; gap: number }
 /** A part of a reply: drawn by the engine's Markdown, or by the plugin with its paths as links. */
 export type Part =
@@ -158,7 +160,22 @@ export async function planOf ($: Engine, reply: string): Promise<Plan | null> {
     const code = await excerptAt($, target.path, target.stat, target.line)
     if (code) target.code = code
   }))
+  // A picture still being written leaves the plan out of the cache: the reply is drawn again once
+  // the picture is there.
+  let isWaiting = false
+  if (targets.some(target => isPicture(target.path)) && (await drawsPictures($))) {
+    const ready = () => {
+      plans.delete(key)
+      $.ui.invalidate('ui.render')
+    }
+    for (const target of targets) {
+      const picture = isPicture(target.path) ? pictureAt($, target.path, target.stat, ready) : null
+      if (picture) target.picture = picture
+      if (picture === undefined) isWaiting = true
+    }
+  }
   const plan = targets.length > 0 ? { parts, targets } : null
+  if (isWaiting) return plan
   if (plans.size >= KEPT) plans.delete(plans.keys().next().value!)
   plans.set(key, { plan, at: Date.now() })
   return plan

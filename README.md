@@ -189,7 +189,8 @@ if the file exists. Hover it for a card with the name, the size and how long
 ago it changed. For code and text the card also shows the first lines, or the
 lines around the one the path names. Files that usually hold secrets, such
 as `.env` and `.npmrc`, show no lines, while samples such as `.env.example`
-do. Click to show the file in Finder, Explorer or your Linux file manager.
+do. In Ghostty and kitty the card of a picture shows the picture itself; on
+macOS it is read with `sips`, on Linux with ImageMagick. Click to show the file in Finder, Explorer or your Linux file manager.
 Alt-click opens it in its default program. A program or a script, such as an
 `.exe`, a `.command` or a file with no extension, isn't run: Alt-click shows
 it in its folder.
@@ -246,7 +247,10 @@ limits of any subscription login on the machine.
   when you click. On Windows and under WSL it also keeps the window's helper,
   `image-preview-popup-1.dll`, in the Windows temp folder.
 - `quick-peek` reads the size, the date and the lines its card shows of the
-  files a reply names, except the lines of files that hold secrets. On a
+  files a reply names, except the lines of files that hold secrets. In
+  Ghostty and kitty it runs `sips` or ImageMagick to write a picture the
+  reply names as a small PNG, in the `quick-peek` folder of Claude Code's
+  temp folder. On a
   click it runs the file manager. On an Alt-click it opens the file with its
   default program; a program or a script it shows in the file manager
   instead.

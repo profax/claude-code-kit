@@ -16,7 +16,7 @@
     {
       "name": "quick-peek",
       "source": "./plugins/quick-peek",
-      "description": "Paths in Claude's replies become links: hover one for a card with its size, age and first lines, click to show it in the file manager."
+      "description": "Paths in Claude's replies become links: hover one for a card with its size, age and first lines or picture, click to show it in the file manager."
     }
   ]
 }

@@ -1,7 +1,7 @@
 # quick-peek
 
 Paths in Claude's replies become links. Hover one for a card with the file's
-size, age and first lines; click to show it in the file manager, Alt-click to
+size, age and first lines, or in Ghostty and kitty the picture itself; click to show it in the file manager, Alt-click to
 open it. Programs and scripts are shown in their folder instead, and files
 that hold secrets, such as `.env`, show no lines.
 
