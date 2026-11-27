@@ -12,6 +12,7 @@ import { forgetPlans, planOf, statOf } from './plan'
 import type { DrawnItem, Plan, Target } from './plan'
 import { Ledger, TRANSCRIPT } from './ledger'
 import type { Place, Spot, Transcript } from './ledger'
+import { sizeOf } from './size'
 import { forgetSystem, show } from './system'
 
 type Engine = EngineInterface
@@ -45,9 +46,6 @@ function forget () {
   linked.clear()
   scopes.clear()
 }
-
-const sizeOf = (bytes: number) =>
-  bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : bytes < 1024 ** 3 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${(bytes / 1024 ** 3).toFixed(1)} GB`
 
 const ago = (ms: number) => {
   const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000))

@@ -6,6 +6,7 @@ import { atom, memberOf, read, update } from 'claude-code'
 import type { Elements, EngineInterface, Register, RenderElement } from 'claude-code'
 
 import { fit, parseBmp, toCells } from './pixels'
+import { sizeOf } from './size'
 import { forgetSystem, show, systemOf } from './system'
 import type { System } from './system'
 import { Ledger, TRANSCRIPT } from './ledger'
@@ -54,9 +55,6 @@ const WINDOW_RETRY_MS = 5 * 60 * 1000
 const KEPT = 8
 
 const sameIds = (a: readonly number[], b: readonly number[] = []) => a.length === b.length && a.every((id, i) => id === b[i])
-
-const sizeOf = (bytes: number) =>
-  bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
 // Ghostty and kitty read the file themselves; a terminal named by
 // CLAUDE_CODE_FORCE_TERMINAL_IMAGES is sent the bytes; the rest get cells.
