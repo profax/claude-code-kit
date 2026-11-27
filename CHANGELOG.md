@@ -3,6 +3,11 @@
 Notable changes, newest first. One version covers the whole kit: quotaline
 and both plugins.
 
+## Unreleased
+
+- **quotaline**: the weekly percent no longer drops by one when a session
+  reports its whole number after the server's finer one (98 after 98.6).
+
 ## 0.1.4 (2026-11-27)
 
 - **Both plugins**: while a session runs tools, a card counts each tool
