@@ -167,7 +167,9 @@ How the picture is shown depends on the terminal:
 
 On Windows and under WSL, a window by the pointer takes the place of the
 colored cells, inside tmux too. The window takes no focus and closes when the
-pointer leaves. Over SSH there is no window, and the cells stay.
+pointer leaves, or after two minutes. If a window can't open, the cells take
+its place for five minutes, and then a window is tried again. Over SSH there
+is no window, and the cells stay.
 
 On Linux it needs ImageMagick (`magick` or `convert`) to read the image.
 macOS, Windows and WSL read it with what the system has, and use ImageMagick
