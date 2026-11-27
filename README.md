@@ -62,6 +62,13 @@ in your tmux, try adding `set -g mouse on` to `~/.tmux.conf` and running
    such as Apple M1) or a processor (Intel). On Linux and WSL, `uname -m`
    prints `x86_64` or `aarch64`.
 
+   To check that the archive was built from this repository by its release
+   workflow (from 0.1.1 on), run this with the GitHub CLI:
+
+   ```
+   gh attestation verify quotaline-*.tar.gz --repo profax/claude-code-kit
+   ```
+
 2. Unpack it and put the program in a folder for programs.
 
    On macOS, Linux and WSL, run this in a terminal:

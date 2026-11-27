@@ -67,6 +67,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+      # a signed record of the run that built each archive
+      id-token: write
+      attestations: write
     defaults:
       run:
         shell: bash
@@ -106,7 +109,14 @@ jobs:
             archive="$name.tar.gz"
           fi
           if command -v sha256sum > /dev/null; then sha256sum "$archive" > "$archive.sha256"; else shasum -a 256 "$archive" > "$archive.sha256"; fi
-          gh release upload "$GITHUB_REF_NAME" "$archive" "$archive.sha256"
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+      # The checksum lies next to the archive and proves only that the two
+      # match; the attestation ties the archive to this workflow and commit
+      # nosemgrep: github-actions-mutable-action-tag
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: ${{ env.ARCHIVE }}
+      - run: gh release upload "$GITHUB_REF_NAME" "$ARCHIVE" "$ARCHIVE.sha256"
         env:
           GH_TOKEN: ${{ github.token }}
 
