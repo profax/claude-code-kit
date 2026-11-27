@@ -1,0 +1,28 @@
+name: newest-claude-code
+
+on:
+  # CI pins the oldest Claude Code the plugins support; a newer release can
+  # break them while CI stays green. A failed scheduled run emails the
+  # repository's owner
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plugins:
+    runs-on: ubuntu-latest
+    steps:
+      # nosemgrep: github-actions-mutable-action-tag
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # As in ci.yml, only Claude Code's own install script runs
+      - run: npm ci --ignore-scripts --no-fund --no-audit
+      - run: npm install --no-save --ignore-scripts --no-fund --no-audit @anthropic-ai/claude-code@latest
+      - run: node node_modules/@anthropic-ai/claude-code/install.cjs
+      - run: npx claude --version
+      - run: npm run validate
+      - run: npm test
