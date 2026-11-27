@@ -3,7 +3,7 @@
 Notable changes, newest first. One version covers the whole kit: quotaline
 and both plugins.
 
-## 0.1.1 (unreleased)
+## 0.1.1 (2026-11-27)
 
 - **image-preview**: the card of a chip above the prompt always opens above
   the prompt box, where it covers no text, instead of over the transcript.
