@@ -102,9 +102,9 @@ enum Seen {
 /// an idle session would bring back a window that has already been replaced.
 /// One subscription has one upcoming reset, so a fresh reading with another
 /// future reset means the login changed and the kept reading belongs to the
-/// previous one. Within one window a session only raises the percentage: its
-/// last response may be older than the server's answer, and a limit reset
-/// early comes down through the server, which `absorb` always takes.
+/// previous one. Within one window a drop of one point is the other
+/// source's rounding (the server said 99, a session 98 a moment later) and
+/// is left out; a larger drop is a limit reset early and shows at once.
 fn newer(a: &Value, b: &Value, seen: Seen, now: i64) -> bool {
     let reset = |v: &Value| v["resets_at"].as_i64().unwrap_or(0);
     if b.is_null() {
@@ -115,7 +115,7 @@ fn newer(a: &Value, b: &Value, seen: Seen, now: i64) -> bool {
     }
     if reset(a) == reset(b) {
         let used = |v: &Value| v["used_percentage"].as_f64().unwrap_or(0.0);
-        return used(a) > used(b);
+        return used(a) > used(b) || used(a) < used(b) - 1.0;
     }
     reset(a) > reset(b) || reset(a) > now
 }
@@ -261,14 +261,14 @@ mod tests {
     }
 
     #[test]
-    fn a_session_never_lowers_a_window() {
-        // the server said 99, then a session still holding an older 98
-        // reports the same week: the shown number must not drop to 98
+    fn a_window_drops_only_by_a_reset() {
+        // the server said 99, then a session rounds the same week to 98:
+        // the shown number must not drop to 98
         assert!(!newer(&at(100, 98.0), &at(100, 99.0), Seen::Renewed, 50));
-        assert!(!newer(&at(100, 1.0), &at(100, 100.0), Seen::New, 50));
         assert!(newer(&at(100, 99.0), &at(100, 98.0), Seen::Renewed, 50));
-        // a limit reset early: a new reset time comes in from a session,
-        // the same one goes down through the server, which is always taken
+        // a limit reset early, with the same reset time or a new one,
+        // shows from a session and from the server alike
+        assert!(newer(&at(100, 1.0), &at(100, 100.0), Seen::New, 50));
         assert!(newer(&at(300, 0.0), &at(100, 99.0), Seen::Renewed, 50));
         let mut kept = json!({"seven_day": at(100, 99.0)});
         absorb(
