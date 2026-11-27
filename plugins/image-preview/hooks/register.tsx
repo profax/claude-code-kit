@@ -54,6 +54,8 @@ const VIEW_BYTES = 2 * 1024 * 1024
 // nothing closes it.
 const WINDOW_SIZE = 800
 const WINDOW_LIFE = 120
+// After a window fails, how long the terminal draws the cards before a window is tried again.
+const WINDOW_RETRY_MS = 5 * 60 * 1000
 // How many pictures' pixels are kept: each takes megabytes, and an older one is read again.
 const KEPT = 8
 // What reads a picture, tried in this order: magick is ImageMagick 7 and convert ImageMagick 6
@@ -160,6 +162,9 @@ let sep = '/'
 // Whether a card opens as a Windows window (on Windows and under WSL, when the terminal draws no
 // pictures itself), and the window open now.
 let windowed = false
+// Whether this session may open windows at all, and which failure turned them off last.
+let canWindow = false
+let windowsOff = 0
 let popup: { id: number; isOpen: boolean } | undefined
 let tool: Tool | undefined
 const thumbs = new Map<number, Pixels>()
@@ -432,8 +437,8 @@ async function openImage ($: Engine, id: number) {
 /**
  * Keeps the window of the image `id` up until `closeWindow` ends it. The program prints a `.` ten
  * times a second: the loop wakes, sees the window closed, and leaving the loop ends the program.
- * If it ends without showing a window, there are no windows to be had here, and the terminal draws
- * the cards from then on.
+ * If it ends without showing a window, the terminal draws the cards for `WINDOW_RETRY_MS`, and then
+ * a window is tried again.
  */
 async function openWindow ($: Engine, id: number) {
   if (popup?.id === id && popup.isOpen) return
@@ -458,8 +463,11 @@ async function openWindow ($: Engine, id: number) {
   if (popup === opening) popup = undefined
   if (isShown || !opening.isOpen) return
   // Claude Code leads the line with the plugin's name.
-  $.ui.log(`no window (${said.replace(/\.\r?\n/g, '').trim().slice(0, 300) || 'the program could not start'}); the terminal draws the cards`, { to: 'debug' })
+  $.ui.log(`no window (${said.replace(/\.\r?\n/g, '').trim().slice(0, 300) || 'the program could not start'}); the terminal draws the cards for five minutes`, { to: 'debug' })
   windowed = false
+  const off = ++windowsOff
+  // A module unloaded meanwhile ends the wait: nothing is left to turn back on.
+  void $.clock.sleep(WINDOW_RETRY_MS).then(() => { if (off === windowsOff) windowed = canWindow }, () => undefined)
   await change($, now => (now?.edge === 'window' ? placeFor(now.id, now.target) : now))
 }
 
@@ -779,7 +787,9 @@ export const register: Register = (on) => {
     tool = undefined
     temp = undefined
     // Over SSH the window would open on another machine's desktop.
-    windowed = (system === 'windows' || system === 'wsl') && graphics === 'none' && e.isInteractive && sshConnection === undefined && sshTty === undefined
+    canWindow = (system === 'windows' || system === 'wsl') && graphics === 'none' && e.isInteractive && sshConnection === undefined && sshTty === undefined
+    windowed = canWindow
+    windowsOff++
     // A reload starts with an empty cache: what is in the box already is read again.
     await follow($)
     const [initialDraft, initialShown, box] = await Promise.all([read($, draft), read($, shown), $.prompt.read()])
