@@ -10,6 +10,8 @@ Three additions to Claude Code in the terminal: look at a pasted image before
 you send it, peek into a file a reply names, and keep your limits in the
 status line.
 
+![A pasted image previewed above the prompt, with the status line below](docs/screenshot.png)
+
 | Part | What it does |
 |---|---|
 | [image-preview](#image-preview) | Hover `[Image #N]` to see the picture |

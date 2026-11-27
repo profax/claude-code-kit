@@ -48,7 +48,7 @@ fn git(args: &[&str]) -> String {
 /// Tracked files that are not UTF-8 text, and so are not searched. Text in
 /// another encoding would pass every check unread: a file that fails to
 /// decode is an error unless it is here.
-const BINARY: &[&str] = &[];
+const BINARY: &[&str] = &["docs/screenshot.png"];
 
 /// Tracked files with their text. This file is left out: it has to spell
 /// what it looks for. A file deleted from the working tree has no text to
