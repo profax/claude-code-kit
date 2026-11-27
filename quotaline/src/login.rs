@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use serde_json::Value;
+use sha2::{Digest as _, Sha256};
 
 /// Address of the subscription server. `replaced` (the `QUOTALINE_API`
 /// variable) swaps in a test server, and only one on this machine: the
@@ -22,32 +23,91 @@ fn api(replaced: Option<String>) -> String {
         .unwrap_or_else(|| "https://api.anthropic.com".into())
 }
 
-/// The login record of Claude Code's default profile from the macOS
-/// keychain, where Claude Code keeps it. The user's keychain lives in their
-/// home: a home without one (tests) has no record to ask for.
+/// How long the keychain may take. macOS may first ask the user to let
+/// `security` read the entry, and the line can't wait for an answer: every
+/// session's line waits on the store's lock meanwhile.
 #[cfg(target_os = "macos")]
-fn keychain() -> Option<String> {
+const KEYCHAIN_WAIT: Duration = Duration::from_millis(1500);
+
+/// The login record in the macOS keychain entry `service`, where Claude Code
+/// keeps it; `None` when the keychain has no such entry or takes longer
+/// than `KEYCHAIN_WAIT`. The user's keychain lives in their home: a home
+/// without one (tests) has no record to ask for.
+#[cfg(target_os = "macos")]
+fn keychain(service: &str) -> Option<String> {
+    use std::io::Read as _;
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
     if !std::env::home_dir()?.join("Library/Keychains").is_dir() {
         return None;
     }
-    let found = std::process::Command::new("security")
-        .args([
-            "find-generic-password",
-            "-s",
-            "Claude Code-credentials",
-            "-w",
-        ])
-        .output()
+    let mut child = Command::new("security")
+        .args(["find-generic-password", "-s", service, "-w"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
         .ok()?;
-    found
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&found.stdout).into_owned())
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => {
+                let mut record = String::new();
+                child.stdout.take()?.read_to_string(&mut record).ok()?;
+                return Some(record);
+            }
+            Ok(None) if started.elapsed() < KEYCHAIN_WAIT => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Ok(None) | Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+            Ok(Some(_)) => return None,
+        }
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
-fn keychain() -> Option<String> {
+fn keychain(_service: &str) -> Option<String> {
     None
+}
+
+/// `-` and the first eight hex digits of the SHA-256 of `dir`: how Claude
+/// Code tells a profile's keychain entry from the default one.
+fn hashed(dir: &str) -> String {
+    let hash = Sha256::digest(dir.as_bytes());
+    format!(
+        "-{:02x}{:02x}{:02x}{:02x}",
+        hash[0], hash[1], hash[2], hash[3]
+    )
+}
+
+/// The keychain entry of this profile's login, named as Claude Code names
+/// it: after `CLAUDE_SECURESTORAGE_CONFIG_DIR` when that is set (an empty
+/// one means the default entry), otherwise after `CLAUDE_CONFIG_DIR`.
+/// Claude Code hashes the path in Unicode NFC: a path written another way
+/// misses the entry, and the profile's login file is read instead.
+fn keychain_entry() -> String {
+    let named = |var| std::env::var_os(var).map(|v| v.to_string_lossy().into_owned());
+    let dir = named("CLAUDE_SECURESTORAGE_CONFIG_DIR")
+        .or_else(|| named("CLAUDE_CONFIG_DIR"))
+        .unwrap_or_default();
+    let suffix = if dir.is_empty() {
+        String::new()
+    } else {
+        hashed(&dir)
+    };
+    format!("Claude Code-credentials{suffix}")
+}
+
+/// What sets this profile's files apart from the default profile's: empty
+/// for the default one, and for `CLAUDE_CONFIG_DIR` the suffix Claude Code
+/// gives its keychain entry. Each profile has a login of its own, and its
+/// limits are not another's.
+pub fn profile() -> String {
+    profile_dir().map_or_else(String::new, |dir| hashed(&dir.to_string_lossy()))
 }
 
 /// The directory of a Claude Code profile other than the default one:
@@ -67,19 +127,11 @@ pub fn config_dir() -> Option<PathBuf> {
 
 /// The subscription login token, or `None` without a subscription login. An
 /// expired token is neither returned nor refreshed: Claude Code refreshes it,
-/// and a second refresher would leave Claude Code signed out.
-///
-/// A profile of its own keeps its login in the keychain under another entry,
-/// one quotaline doesn't look for. The default entry then holds another
-/// login, whose limits are not this profile's, so only the profile's
-/// `.credentials.json` counts.
+/// and a second refresher would leave Claude Code signed out. The login is
+/// the profile's own: its keychain entry, then its `.credentials.json`.
 pub fn token(now: i64) -> Option<String> {
-    let file = || fs::read_to_string(config_dir()?.join(".credentials.json")).ok();
-    let text = if profile_dir().is_some() {
-        file()
-    } else {
-        keychain().or_else(file)
-    }?;
+    let text = keychain(&keychain_entry())
+        .or_else(|| fs::read_to_string(config_dir()?.join(".credentials.json")).ok())?;
     let login: Value = serde_json::from_str(&text).ok()?;
     let login = &login["claudeAiOauth"];
     if login["expiresAt"]
