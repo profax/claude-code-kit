@@ -12,7 +12,7 @@ import { forgetSystem, show, systemOf } from './system'
 import type { System } from './system'
 import { Ledger, TRANSCRIPT } from './ledger'
 import { forgetReaders, saidBy, write } from './readers'
-import type { Row } from './ledger'
+import type { Placed, Row } from './ledger'
 import { idsIn, PROMPT_AT, tokensOn } from './tokens'
 import { windowCommand } from './window'
 import type { Pixels } from './pixels'
@@ -80,7 +80,6 @@ const failed = new Set<number>()
 const cells = new Map<string, string>()
 const views = new Map<number, string>()
 const ledger = new Ledger()
-let seenAtLastLook = 0
 let movesShown = 0
 let draftIds: number[] = []
 let hasShown = false
@@ -117,6 +116,35 @@ async function followSession ($: Engine) {
 }
 
 const join = (...parts: string[]) => parts.join(sep)
+
+let reading: Promise<void> | undefined
+let canRead = true
+type RangedRead = { messages: (args: { last: number } | { after: string }) => Promise<readonly Placed[] | { deny: string }> }
+
+/**
+ * Tells the ledger where the messages stand, while a row was drawn that none read so far places.
+ * Claude Code 2.1.325 refuses a ranged read: rows then stand in the order drawn.
+ */
+function readMessages ($: Engine) {
+  if (reading || !canRead || !ledger.isBehind) return
+  reading = (async () => {
+    while (ledger.isBehind) {
+      ledger.isBehind = false
+      const after = ledger.lastRead
+      const got = await ($.session as unknown as RangedRead).messages(after === undefined ? { last: 4096 } : { after })
+      if (!('deny' in got)) ledger.learn(got)
+      else if (after === undefined) return
+      else {
+        // The transcript was cut (compacted): read it again.
+        ledger.forget()
+        ledger.isBehind = true
+      }
+    }
+  })().catch((error: unknown) => {
+    canRead = false
+    logOnce($, `reading the transcript's order failed: ${error instanceof Error ? error.message : String(error)}`)
+  }).finally(() => { reading = undefined })
+}
 
 let detecting: Promise<void> | undefined
 
@@ -423,8 +451,6 @@ async function chipsUnder ($: Engine, e: Row): Promise<RenderElement[]> {
  * move. The band's chips stay where they are, and so does their card.
  */
 async function settle ($: Engine) {
-  if (ledger.seenRows === seenAtLastLook) ledger.isBatching = false
-  seenAtLastLook = ledger.seenRows
   if (!hasShown || ledger.moves === movesShown) return
   await change($, now => !now || !isFromPrompt(now) ? now : ledger.moves === movesShown ? now : null)
 }
@@ -561,12 +587,13 @@ export const register: Register = (on) => {
     return result
   })
 
-  // One hook notes every row, so that rows drawn together (after a reload) come in the
-  // transcript's order. Under a sent prompt the engine lists the images, a `⎿ [Image #N]` to a
+  // One hook notes every row, so that rows drawn together (after a reload) come in the order
+  // drawn. Under a sent prompt the engine lists the images, a `⎿ [Image #N]` to a
   // row: each gets an unpainted chip over it, so the engine's row shows as it was.
   on('ui.render', { component: [...TRANSCRIPT] }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.viewport?.isFullscreen !== true) return next(e)
     if (ledger.note(e)) $.ui.invalidate('ui.render')
+    readMessages($)
     if (e.component !== 'UserMessage') return float($, e, await next(e))
     const ids = e.props.origin.kind === 'composer' ? idsIn(e.props.text) : []
     if (ids.length === 0) return float($, e, await next(e))

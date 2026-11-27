@@ -5,10 +5,9 @@ import type { Row } from './ledger'
 
 type Lines = { first: number; last: number; of: number } | null
 
-/** A ledger of a running session: past its first batch, each row noted is a new one. */
+/** A ledger of a running session, each row noted a new one. */
 function ledger (screenRows = 40) {
   const noted = new Ledger()
-  noted.isBatching = false
   noted.screenRows = screenRows
   return noted
 }

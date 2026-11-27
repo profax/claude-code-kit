@@ -15,10 +15,26 @@ type OnScreen = NonNullable<Row['props']['onScreen']>
 
 /**
  * A transcript row: what it is, when it was first drawn and how many rows had been first drawn by
- * its latest drawing, whether it came in the batch a session starts with, which of its rows are on
- * screen, and the text of a composer prompt with `[Image #N]` in it.
+ * its latest drawing, which of its rows are on screen, and the text of a composer prompt with
+ * `[Image #N]` in it.
  */
-type Noted = { component: Row['component']; seen: number; drawnAt: number; isBatch: boolean; onScreen: OnScreen | null | undefined; text?: string }
+type Noted = { component: Row['component']; seen: number; drawnAt: number; onScreen: OnScreen | null | undefined; text?: string }
+
+/**
+ * The message a row draws, as the transcript keeps it: a message row's id is the message's uuid
+ * with its last group zeroed (Claude Code 2.1.332), a tool group's that of a message in it after
+ * `collapsed-`, a tool row's the call's id.
+ */
+const messageOf = (requestId: string) => {
+  const id = requestId.startsWith('collapsed-') ? requestId.slice('collapsed-'.length) : requestId
+  return id.startsWith('toolu_') ? id : id.slice(0, 23)
+}
+
+/**
+ * A message as a ranged read of the transcript returns it (Claude Code 2.1.332): with its uuid and
+ * its tool calls. Claude Code 2.1.325 refuses such a read and has no `uuid` in its types.
+ */
+export type Placed = { uuid?: string; toolUses: readonly { tool_use_id: string }[] }
 
 const MIN_CARD_ROWS = 6
 
@@ -26,20 +42,22 @@ export class Ledger {
   /** Every transcript row drawn, by requestId. */
   readonly rows = new Map<string, Noted>()
   seenRows = 0
-  /** The module loads when a session starts or on a reload, and the engine draws every row at once. */
-  isBatching = true
+  /** Set when a row was drawn that no message read so far places: `learn` the newer messages. */
+  isBehind = false
   /** Counts every change of what is on screen: a card closes once its label may have left the pointer. */
   moves = 0
   /** The screen's height; a guess until the engine first says. */
   screenRows = 40
+  /** Where each message stands in the transcript, by `messageOf`; the uuid of the last one read. */
+  #places = new Map<string, number>()
+  #read = 0
+  #lastRead: string | undefined
   #order: Map<string, number> | undefined
-  #orderSeen = -1
 
   /** Forgets every row: another session's transcript is drawn. */
   clear () {
     this.rows.clear()
-    this.#order = undefined
-    this.#orderSeen = -1
+    this.forget()
     this.moves++
   }
 
@@ -58,7 +76,9 @@ export class Ledger {
     if (!row) {
       const seen = this.seenRows++
       const text = e.component === 'UserMessage' && e.props.origin.kind === 'composer' && idsIn(e.props.text).length > 0 ? e.props.text : undefined
-      this.rows.set(e.requestId, { component: e.component, seen, drawnAt: this.seenRows, isBatch: this.isBatching, onScreen, ...(text !== undefined && { text }) })
+      this.rows.set(e.requestId, { component: e.component, seen, drawnAt: this.seenRows, onScreen, ...(text !== undefined && { text }) })
+      this.#order = undefined
+      if (!this.#places.has(messageOf(e.requestId))) this.isBehind = true
       this.moves++
       return false
     }
@@ -86,32 +106,49 @@ export class Ledger {
     return false
   }
 
+  /** The uuid a read of the messages newer than those learnt starts after; none, read the newest. */
+  get lastRead () {
+    return this.#lastRead
+  }
+
+  /** Learns where messages stand, read newest last: all the transcript has, or those after `lastRead`. */
+  learn (messages: readonly Placed[]) {
+    for (const message of messages) {
+      if (message.uuid === undefined) continue
+      const at = this.#read++
+      this.#places.set(messageOf(message.uuid), at)
+      for (const { tool_use_id } of message.toolUses) if (!this.#places.has(tool_use_id)) this.#places.set(tool_use_id, at)
+      this.#lastRead = message.uuid
+    }
+    this.#order = undefined
+  }
+
+  /** Forgets the messages learnt: the transcript was cut (compacted) or another one is drawn. */
+  forget () {
+    this.#places.clear()
+    this.#read = 0
+    this.#lastRead = undefined
+    this.#order = undefined
+  }
+
   /**
-   * The rows in the transcript's order. A row drawn as the session goes is where it was drawn. The
-   * batch a session starts with, or a reload, comes in two passes, the prompts apart from the rest:
-   * each prompt is put at the start of its turn, after the duration row of the turn before, the last
-   * prompt with the last turn.
+   * The rows in the transcript's order, by the messages learnt. The engine draws a session it opens,
+   * or a reload, a block at a time, the newest first, each block in order, and more blocks as the
+   * transcript scrolls back: so a row no message places (a turn's duration, a prompt queued while a
+   * turn ran, any row before the messages are read) comes right after the row drawn before it. One
+   * that opens a block stands at the end of the block drawn before.
    */
   order () {
-    if (this.#order && this.#orderSeen === this.seenRows) return this.#order
-    const bySeen = (a: [string, Noted], b: [string, Noted]) => a[1].seen - b[1].seen
-    const batch = [...this.rows].filter(([, row]) => row.isBatch).sort(bySeen)
-    const notices = batch.filter(([, row]) => row.component === 'InfoNotice')
-    const prompts = batch.filter(([, row]) => row.component === 'UserMessage')
-    const others = batch.filter(([, row]) => row.component !== 'InfoNotice' && row.component !== 'UserMessage')
-    const starts = [0, ...others.flatMap(([, row], i) => (row.component === 'TurnDuration' && i + 1 < others.length ? [i + 1] : []))]
-    const before = new Map<number, string[]>()
-    prompts.forEach(([id], i) => {
-      const at = starts[Math.max(0, starts.length - (prompts.length - i))]!
-      before.set(at, [...(before.get(at) ?? []), id])
+    if (this.#order) return this.#order
+    let place = -1
+    // The rows come in the order first drawn.
+    const placed = [...this.rows].map(([id, row]) => {
+      place = this.#places.get(messageOf(id)) ?? place
+      return { id, place, seen: row.seen }
     })
-    const ordered = [...notices.map(([id]) => id), ...others.flatMap(([id], i) => [...(before.get(i) ?? []), id])]
-    if (others.length === 0) ordered.push(...prompts.map(([id]) => id))
-    const order = new Map(ordered.map((id, i) => [id, i]))
-    for (const [id, row] of this.rows) if (!row.isBatch) order.set(id, ordered.length + row.seen)
-    this.#order = order
-    this.#orderSeen = this.seenRows
-    return order
+    placed.sort((a, b) => a.place - b.place || a.seen - b.seen)
+    this.#order = new Map(placed.map(({ id }, i) => [id, i]))
+    return this.#order
   }
 
   /**

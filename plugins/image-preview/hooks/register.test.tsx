@@ -472,21 +472,27 @@ test('moving from one listed image to the next opens the next card, the leave an
 
 test('rows a resumed session draws a block at a time, the newest first, stand in the transcript\'s order', async ($, on) => {
   const w = world(on, { files: { '1.png': 2048 } })
-  on('session.messages', () => ({ value: ['m-1', 'a-1', 'm-2', 'a-2'].map(uuid => ({ role: uuid.startsWith('m') ? 'user' : 'assistant', text: '', toolUses: [], uuid })) }))
+  let isRead = false
+  on('session.messages', () => ((isRead = true), { value: ['m-1', 'a-1', 'm-2', 'a-2'].map(uuid => ({ role: uuid.startsWith('m') ? 'user' : 'assistant', text: '', toolUses: [], uuid })) }))
   await startSession($)
   // As Claude Code 2.1.325 and 2.1.332 draw a resumed session: the screen's block, then the one above.
   await $.ui.mount({ plugin: 'image-preview', surface: 'terminal', component: 'TurnDuration', requestId: 't-1', props: { word: 'Baked', durationMs: 1000, onScreen: { first: 0, last: 1, of: 2 } }, viewport: SCREEN })
   const message = await sent($, 'look at [Image #1]', { first: 0, last: 2, of: 3 }, 'm-2')
   const after = await reply($, 'a-2', { first: 0, last: 1, of: 2 })
   await sent($, 'hello', { first: 0, last: 1, of: 2 }, 'm-1')
-  await reply($, 'a-1', { first: 0, last: 9, of: 10 })
+  const last = await reply($, 'a-1', { first: 0, last: 9, of: 10 })
   await w.clock.advance(1000)
 
-  // The prompt's rows above it are the first prompt's, the first reply's and the turn's duration:
-  // 15 rows, more than under it.
   await point(message, 'sent:1')
-  expect(keyed(await message.drawn(), 'float-1')).toMatchObject({ props: { position: 'absolute', bottom: 2 } })
-  expect(await after.find({ key: 'float-1' })).toBeUndefined()
+  if (isRead) {
+    // The prompt's rows above it are the first prompt's, the first reply's and the turn's duration:
+    // 15 rows, more than under it.
+    expect(keyed(await message.drawn(), 'float-1')).toMatchObject({ props: { position: 'absolute', bottom: 2 } })
+    expect(await after.find({ key: 'float-1' })).toBeUndefined()
+  } else {
+    // Claude Code 2.1.325 refuses the read before it reaches a hook: the rows stand in the order drawn.
+    expect(keyed(await last.drawn(), 'float-1')).toBeDefined()
+  }
 })
 
 test('a click on a chip opens the image in the desktop\'s viewer', async ($, on) => {
