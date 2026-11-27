@@ -35,6 +35,22 @@ test('a sent prompt\'s card goes to the side of the prompt with more room', () =
   expect(high.placeOf(1, 'm-1/sent:1', 'm-1')).toEqual({ id: 1, target: 'm-1/sent:1', host: 'r-1', rows: 20, edge: 'last' })
 })
 
+test('a tool group the engine drew first under its tool\'s id counts once while its turn goes on', () => {
+  const noted = ledger()
+  noted.note(row('m-1', 'UserMessage', { first: 0, last: 1, of: 2 }, '[Image #1]'))
+  // Claude Code 2.1.332 draws a new group once as `collapsed-toolu_…` and a fraction of a second
+  // later under an id of its own, long before the turn ends; the first is never drawn again.
+  noted.note(row('collapsed-toolu_01Ab', 'ToolGroup', { first: 0, last: 1, of: 2 }))
+  noted.note(row('collapsed-5f0c2b1e', 'ToolGroup', { first: 0, last: 2, of: 3 }))
+  noted.note(row('r-1', 'AssistantMessage', { first: 0, last: 1, of: 2 }))
+  noted.note(row('collapsed-toolu_01Cd', 'ToolGroup', { first: 0, last: 1, of: 2 }))
+  noted.note(row('collapsed-9a7d3e40', 'ToolGroup', { first: 0, last: 1, of: 2 }))
+  noted.note(row('r-2', 'AssistantMessage', { first: 0, last: 9, of: 10 }))
+  // Under the prompt the two groups and the two replies, 3 + 2 + 2 + 10: a card four rows taller
+  // would lie over the label that opened it.
+  expect(noted.placeOf(1, 'm-1/sent:1', 'm-1')).toEqual({ id: 1, target: 'm-1/sent:1', host: 'r-2', rows: 17, edge: 'last' })
+})
+
 test('a sent prompt\'s card that fits neither side has no place', () => {
   const noted = ledger(10)
   noted.note(row('m-1', 'UserMessage', { first: 0, last: 1, of: 2 }, '[Image #1]'))

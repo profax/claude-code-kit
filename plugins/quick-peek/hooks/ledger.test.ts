@@ -48,6 +48,16 @@ test('a card where neither side holds it takes the larger side, shortened', () =
   expect(noted.placeOf('r-1', { above: 5, lines: 12 }, 0)).toEqual({ top: -9, lines: 8 })
 })
 
+test('a tool group the engine drew first under its tool\'s id counts once while its turn goes on', () => {
+  const noted = ledger()
+  noted.note(row('r-1', 'AssistantMessage', { first: 0, last: 4, of: 5 }))
+  // Claude Code 2.1.332 draws a new group once as `collapsed-toolu_…` and a fraction of a second
+  // later under an id of its own, long before the turn ends; the first is never drawn again.
+  noted.note(row('collapsed-toolu_01Ab', 'ToolGroup', { first: 0, last: 1, of: 2 }))
+  noted.note(row('collapsed-5f0c2b1e', 'ToolGroup', { first: 0, last: 2, of: 3 }))
+  expect(noted.after('r-1')).toEqual([{ id: 'collapsed-5f0c2b1e', rows: 3, foot: 3 }])
+})
+
 test('a card above the path when the reply\'s place on screen is not known', () => {
   expect(ledger().placeOf('r-1', { above: 0, lines: 3 }, 0)).toEqual({ top: -4, lines: 3 })
 })
