@@ -67,7 +67,9 @@ const excerpts = new Map<string, Excerpt | null>()
 // The transcript rows by requestId, and the replies with links: where their links are, how far off
 // the count of lines above them may be, and where their cards stand now.
 const seen = new Map<string, Seen>()
-const linked = new Map<string, { spots: Spot[]; slack: number; placed: string }>()
+const linked = new Map<string, { spots: Spot[]; slack: number; placed: string; cards: Card[]; copied: string }>()
+// The hover group of each card, short: a group's name holds 64 characters at most.
+const scopes = new Map<string, string>()
 let seenRows = 0
 let screenRows = 40
 // The module loads when a session starts or on a reload, and the engine draws every row at once.
@@ -89,6 +91,7 @@ function logOnce ($: Engine, text: string) {
 function forget () {
   seen.clear()
   linked.clear()
+  scopes.clear()
   isBatching = true
 }
 
@@ -301,19 +304,21 @@ function roomOf (requestId: string, above: number, slack: number) {
 }
 
 /**
- * The card goes above the path, and where it does not fit there, under the end of the transcript.
- * Fitting in neither, it takes the larger, its heading and as many of the file's lines as fit.
- * Right under the path only with no clear row on either side, since what is drawn there paints
- * over it. Above the path when the reply's place on screen is not known.
+ * The card goes above the path, and where it does not fit there, below: under the end of the
+ * transcript, or with no room there right under the path, where the rows drawn after the path draw
+ * it again over themselves (`copiesIn`). Fitting on neither side, it takes the larger one, its
+ * heading and as many of the file's lines as fit. Above the path when the reply's place on screen
+ * is not known.
  */
 function placeOf (requestId: string, spot: Spot, slack: number): Place {
   const rows = 1 + spot.lines
   const room = roomOf(requestId, spot.above, slack)
   if (!room || room.up >= rows) return { top: -rows, lines: spot.lines }
   if (room.under.rows >= rows) return { top: room.under.top, lines: spot.lines }
-  if (room.up >= 1 && room.up >= room.under.rows) return { top: -room.up, lines: room.up - 1 }
-  if (room.under.rows >= 1) return { top: room.under.top, lines: room.under.rows - 1 }
-  return { top: 1, lines: Math.min(spot.lines, Math.max(1, room.down) - 1) }
+  if (room.down >= rows) return { top: 1, lines: spot.lines }
+  const isUp = room.up >= room.down
+  const held = Math.max(1, isUp ? room.up : room.down)
+  return { top: isUp ? -held : 1, lines: held - 1 }
 }
 
 const placedOf = (requestId: string, spots: Spot[], slack: number) => JSON.stringify(spots.map(spot => placeOf(requestId, spot, slack)))
@@ -325,17 +330,66 @@ const placedOf = (requestId: string, spots: Spot[], slack: number) => JSON.strin
  */
 function follow ($: Engine, requestId: string) {
   for (const [id, card] of linked) {
-    if (id === requestId || placedOf(id, card.spots, card.slack) === card.placed) continue
+    if (id === requestId || (placedOf(id, card.spots, card.slack) === card.placed && reachOf(id) === card.copied)) continue
     $.ui.invalidate('ui.render')
     return
   }
 }
 
 /**
+ * The rows drawn after a reply, each with how many lines there are from the reply's foot to the
+ * row's own foot: the rows one under another down the screen, none off it and none cut at its top.
+ * Empty while the reply's foot is not on screen.
+ */
+function after (requestId: string) {
+  const me = seen.get(requestId)
+  const reach: { id: string; rows: number; foot: number }[] = []
+  if (!me?.onScreen || me.onScreen.last !== me.onScreen.of - 1) return reach
+  let foot = 0
+  for (const [id, row] of seen) {
+    if (row.seen <= me.seen || row.isBatchPrompt || row.onScreen === undefined || isReplaced(id, row)) continue
+    if (row.onScreen === null || row.onScreen.first > 0) break
+    foot += row.onScreen.of
+    reach.push({ id, rows: row.onScreen.of, foot })
+  }
+  return reach
+}
+
+const reachOf = (requestId: string) => JSON.stringify(after(requestId))
+
+/**
+ * The cards that reach over the row `requestId`, drawn again by it: a row paints over every card
+ * drawn before it, so the copy the latest row draws lies over all the text in its place. The
+ * reply's own lines under a path count as such a row. Each copy stands against the row's foot.
+ */
+function copiesIn (ui: Ui, requestId: string) {
+  const copies: RenderElement[] = []
+  for (const [id, reply] of linked) {
+    const foot = id === requestId ? { rows: Infinity, foot: 0 } : after(id).find(row => row.id === requestId)
+    if (!foot) continue
+    for (const card of reply.cards) {
+      if (!card.isExact) continue
+      // From the path's line: the row's foot, and its top (for the reply itself, the line under the path).
+      const bottom = card.below + 1 + foot.foot
+      const top = id === requestId ? 1 : bottom - foot.rows
+      if (card.top >= bottom || card.top + card.rows <= top) continue
+      copies.push(cardBox(ui, card, { bottom: bottom - card.top - card.rows, left: card.left }))
+    }
+  }
+  return copies
+}
+
+/**
  * The count of a reply's lines as it is drawn: the line being drawn, at the least; where a link's
  * card goes; and every link in order.
  */
-type Layout = { row: number; place: (spot: Spot) => Place; spots: Spot[] }
+type Layout = { requestId: string; row: number; x: number; place: (spot: Spot) => Place; spots: Spot[]; cards: Card[] }
+/**
+ * A card as a row drawn after its path draws it again: where it stands against the path's line
+ * (`top`, `rows`), its column from the reply's left edge, and how many lines of the reply are
+ * under the path's line, which is known only when no Markdown block of the engine's follows it.
+ */
+type Card = { scope: string; top: number; rows: number; left: number; width: number; title: string; source?: string; first: number; path: string; line: number; below: number; isExact: boolean }
 
 /** `text` with spaces after it up to `width` cells. */
 const padded = (text: string, width: number) => text + ' '.repeat(Math.max(0, width - widthOf(text)))
@@ -352,6 +406,29 @@ function numbered ({ Box, Code, Text }: Ui, source: string, first: number, width
     <Box flexDirection="row">
       <Text dimColor>{lines.map((_, i) => `${String(first + i).padStart(digits)} `).join('\n')}</Text>
       <Code source={lines.map(line => padded(line, width - digits - 1)).join('\n')} path={path} wrap="truncate-end" />
+    </Box>
+  )
+}
+
+/** The hover group of one part of one link of a reply. */
+function scopeOf (requestId: string, link: number, part: number) {
+  const key = `${requestId}:${link}:${part}`
+  let scope = scopes.get(key)
+  if (scope === undefined) scopes.set(key, (scope = `card${scopes.size}`))
+  return scope
+}
+
+/**
+ * A card at `at` against its parent: its title on the theme's subtle fill, and a file's lines on the
+ * fill of a prompt, every cell written. Shown while any member of its hover group is under the
+ * pointer.
+ */
+function cardBox (ui: Ui, card: Card, at: { top?: number; bottom?: number; left: number }) {
+  const { Box, Text } = ui
+  return (
+    <Box position="absolute" {...at} width={card.width} flexDirection="column" backgroundColor="userMessageBackground" display="none" hover={{ display: 'flex', scope: card.scope }}>
+      <Text color="text" backgroundColor="subtle" wrap="truncate-end">{padded(card.title, card.width)}</Text>
+      {card.source !== undefined && numbered(ui, card.source, card.first, card.width, card.path)}
     </Box>
   )
 }
@@ -388,13 +465,16 @@ function drawRows (ui: Ui, rows: Row[], width: number, targets: Target[], parts:
           const source = excerpt && place.lines > 0 ? excerpt.source.split('\n').slice(0, place.lines).join('\n') : undefined
           const cardWidth = Math.min(excerpt ? Math.max(widthOf(card), CARD_COLUMNS) : widthOf(card), width)
           const left = Math.max(-at, Math.min(0, width - at - cardWidth))
+          const scope = scopeOf(layout.requestId, run.link, part)
+          const drawn: Card = {
+            scope, top: place.top, rows: 1 + (source === undefined ? 0 : source.split('\n').length), left: layout.x + at + left, width: cardWidth,
+            title: card, ...(source !== undefined && { source }), first: excerpt?.first ?? 1, path: target.path, line: above, below: 0, isExact: true
+          }
+          layout.cards.push(drawn)
           return (
-            <Box key={`card:${run.link}:${part}`}>
+            <Box key={`card:${run.link}:${part}`} hover={{ scope }}>
               <Client key={`path:${run.link}:${part}`} module="./link.tsx" props={props} />
-              <Box position="absolute" top={place.top} left={left} width={cardWidth} flexDirection="column" backgroundColor="userMessageBackground" display="none" hover={{ display: 'flex' }}>
-                <Text color="text" backgroundColor="subtle" wrap="truncate-end">{padded(card, cardWidth)}</Text>
-                {excerpt && source !== undefined && numbered(ui, source, excerpt.first, cardWidth, target.path)}
-              </Box>
+              {cardBox(ui, drawn, { top: place.top, left })}
             </Box>
           )
         })}
@@ -409,8 +489,10 @@ function drawList (ui: Ui, list: DrawnItem[], width: number, targets: Target[], 
     const indent = widthOf(item.marker) + 1
     const marginTop = i > 0 && item.gap > 0 ? 1 : 0
     layout.row += marginTop
+    layout.x += indent
     const rows = drawRows(ui, wrap(item.runs, width - indent), width - indent, targets, parts, layout)
     const children = drawList(ui, item.children, width - indent, targets, parts, layout)
+    layout.x -= indent
     return (
       <Box flexDirection="row" marginTop={marginTop}>
         <Box minWidth={indent} flexShrink={0}><Text>{item.marker}</Text></Box>
@@ -436,6 +518,7 @@ function drawWith (ui: Ui, e: Message, plan: Plan, layout: Layout) {
           layout.row += marginTop
           if (part.kind === 'markdown') {
             layout.row++
+            for (const card of layout.cards) card.isExact = false
             return <Box marginTop={marginTop}><Markdown text={part.text} /></Box>
           }
           const drawn = part.kind === 'paragraph' ? drawRows(ui, wrap(part.runs, width), width, plan.targets, parts, layout) : drawList(ui, part.items, width, plan.targets, parts, layout)
@@ -451,13 +534,30 @@ function drawWith (ui: Ui, e: Message, plan: Plan, layout: Layout) {
  * screen beyond the count were added by the engine's Markdown, and where they are is not known.
  */
 function draw (ui: Ui, e: Message, plan: Plan) {
-  const counted: Layout = { row: 0, place: spot => ({ top: -1 - spot.lines, lines: spot.lines }), spots: [] }
+  const counted: Layout = { requestId: e.requestId, row: 0, x: BULLET_COLUMNS, place: spot => ({ top: -1 - spot.lines, lines: spot.lines }), spots: [], cards: [] }
   drawWith(ui, e, plan, counted)
   const slack = Math.max(0, (e.props.onScreen?.of ?? 0) - counted.row)
-  const layout: Layout = { row: 0, place: spot => placeOf(e.requestId, spot, slack), spots: [] }
+  const layout: Layout = { requestId: e.requestId, row: 0, x: BULLET_COLUMNS, place: spot => placeOf(e.requestId, spot, slack), spots: [], cards: [] }
   const drawn = drawWith(ui, e, plan, layout)
-  linked.set(e.requestId, { spots: layout.spots, slack, placed: placedOf(e.requestId, layout.spots, slack) })
+  for (const card of layout.cards) card.below = layout.row - 1 - card.line
+  linked.set(e.requestId, { spots: layout.spots, slack, placed: placedOf(e.requestId, layout.spots, slack), cards: layout.cards, copied: reachOf(e.requestId) })
   return drawn
+}
+
+/** A transcript row: a reply the plugin can read with its paths as links, any other row the engine's. */
+async function drawRow ($: Engine, e: Transcript, next: (e: Transcript) => Promise<RenderElement>) {
+  if (e.component !== 'AssistantMessage' || e.props.isSummary) return next(e)
+  // A reply the plugin can't read is the engine's to draw.
+  const plan = await planOf($, e.props.text).catch(error => {
+    logOnce($, `reading a reply failed: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
+  if (!plan) {
+    linked.delete(e.requestId)
+    return next(e)
+  }
+  const drawn = await next(e)
+  return swap(drawn, draw($.ui.resolve(e), e, plan))
 }
 
 /** The tree from `next` with the engine's node replaced by `mine`: what other plugins drew around it stays. */
@@ -547,17 +647,11 @@ export const register: Register = (on) => {
   on('ui.render', { component: [...TRANSCRIPT] }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.viewport?.isFullscreen !== true) return next(e)
     if (note(e)) follow($, e.requestId)
-    if (e.component !== 'AssistantMessage' || e.props.isSummary) return next(e)
-    // A reply the plugin can't read is the engine's to draw.
-    const plan = await planOf($, e.props.text).catch(error => {
-      logOnce($, `reading a reply failed: ${error instanceof Error ? error.message : String(error)}`)
-      return null
-    })
-    if (!plan) {
-      linked.delete(e.requestId)
-      return next(e)
-    }
-    const drawn = await next(e)
-    return swap(drawn, draw($.ui.resolve(e), e, plan))
+    const ui = $.ui.resolve(e)
+    const drawn = await drawRow($, e, next)
+    const copies = copiesIn(ui, e.requestId)
+    if (copies.length === 0) return drawn
+    const { Box } = ui
+    return <Box flexDirection="column">{drawn}{copies}</Box>
   })
 }
