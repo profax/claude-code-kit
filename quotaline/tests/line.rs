@@ -370,28 +370,147 @@ fn expired_login_is_not_sent() {
 /// returned PATH. The real keychain is never asked.
 #[cfg(target_os = "macos")]
 fn keychain_home(api: &str) -> (Home, std::ffi::OsString) {
-    use std::os::unix::fs::PermissionsExt as _;
     let mut home = Home::new();
     api.clone_into(&mut home.1);
     fs::create_dir_all(home.path().join("Library/Keychains")).expect("keychain folder");
-    let bin = home.path().join("bin");
-    fs::create_dir_all(&bin).expect("bin folder");
-    let security = bin.join("security");
-    fs::write(
-        &security,
-        format!(
-            "#!/bin/sh\n\
-             [ \"$*\" = 'find-generic-password -s Claude Code-credentials -w' ] || exit 44\n\
+    let path = fake_security(
+        &home,
+        &format!(
+            "[ \"$*\" = 'find-generic-password -s Claude Code-credentials -w' ] || exit 44\n\
              echo '{}'\n",
             login("default-token", 3600)
         ),
-    )
-    .expect("security");
+    );
+    (home, path)
+}
+
+/// Puts a `security` program running the shell `script` first on the
+/// returned PATH.
+#[cfg(target_os = "macos")]
+fn fake_security(home: &Home, script: &str) -> std::ffi::OsString {
+    use std::os::unix::fs::PermissionsExt as _;
+    let bin = home.path().join("bin");
+    fs::create_dir_all(&bin).expect("bin folder");
+    let security = bin.join("security");
+    fs::write(&security, format!("#!/bin/sh\n{script}")).expect("security");
     fs::set_permissions(&security, fs::Permissions::from_mode(0o755)).expect("security");
     let mut path = bin.into_os_string();
     path.push(":");
     path.push(std::env::var_os("PATH").unwrap_or_default());
-    (home, path)
+    path
+}
+
+/// The keychain entry where Claude Code keeps the login of the profile in
+/// `dir`: the default entry's name and the start of the folder's SHA-256.
+#[cfg(target_os = "macos")]
+fn profile_entry(dir: &Path) -> String {
+    let mut shasum = Command::new("shasum")
+        .args(["-a", "256"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("shasum");
+    shasum
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(dir.to_str().expect("a UTF-8 path").as_bytes())
+        .expect("stdin");
+    let out = shasum.wait_with_output().expect("shasum");
+    format!(
+        "Claude Code-credentials-{}",
+        &String::from_utf8_lossy(&out.stdout)[..8]
+    )
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn profile_reads_its_own_keychain_entry() {
+    let (api, asked) = usage_server(&usage(37.0, 26.0, &[]));
+    let mut home = Home::new();
+    api.clone_into(&mut home.1);
+    fs::create_dir_all(home.path().join("Library/Keychains")).expect("keychain folder");
+    let profile = home.path().join("profile");
+    let storage = home.path().join("storage");
+    fs::create_dir_all(&profile).expect("profile folder");
+    let entry = |name: &str, token: &str| {
+        format!(
+            "[ \"$*\" = 'find-generic-password -s {name} -w' ] && echo '{}' && exit 0\n",
+            login(token, 3600)
+        )
+    };
+    let path = fake_security(
+        &home,
+        &format!(
+            "{}{}{}exit 44\n",
+            entry("Claude Code-credentials", "default-token"),
+            entry(&profile_entry(&profile), "profile-token"),
+            entry(&profile_entry(&storage), "storage-token"),
+        ),
+    );
+    let line = home.line_with(
+        &fresh_session("a"),
+        &[
+            ("PATH", path.as_os_str()),
+            ("CLAUDE_CONFIG_DIR", profile.as_os_str()),
+        ],
+    );
+    assert_eq!(percent(&line, "5h"), "37%", "{line}");
+    // Claude Code names the entry by CLAUDE_SECURESTORAGE_CONFIG_DIR when
+    // that is set, and an empty one means the default entry
+    for (secure, store) in [
+        (&storage, "storage-1"),
+        (&home.path().join(""), "storage-2"),
+    ] {
+        let empty = std::ffi::OsString::new();
+        let secure = if store == "storage-2" {
+            empty.as_os_str()
+        } else {
+            secure.as_os_str()
+        };
+        let cache = home.path().join(store);
+        home.line_with(
+            &fresh_session("a"),
+            &[
+                ("PATH", path.as_os_str()),
+                ("CLAUDE_CONFIG_DIR", profile.as_os_str()),
+                ("CLAUDE_SECURESTORAGE_CONFIG_DIR", secure),
+                ("XDG_CACHE_HOME", cache.as_os_str()),
+            ],
+        );
+    }
+    let asked = asked.lock().expect("request log");
+    let tokens: Vec<&str> = asked
+        .iter()
+        .filter_map(|request| {
+            ["default-token", "profile-token", "storage-token"]
+                .into_iter()
+                .find(|token| request.contains(token))
+        })
+        .collect();
+    assert_eq!(
+        tokens,
+        ["profile-token", "storage-token", "default-token"],
+        "{asked:?}"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn keychain_that_waits_does_not_hold_the_line() {
+    // macOS may ask the user before it hands over the login: the line must
+    // not wait for the answer, nor hold the store's lock meanwhile
+    let home = Home::new();
+    fs::create_dir_all(home.path().join("Library/Keychains")).expect("keychain folder");
+    let path = fake_security(&home, "sleep 10\n");
+    let started = std::time::Instant::now();
+    let line = home.line_with(&limits_event("a"), &[("PATH", path.as_os_str())]);
+    assert_eq!(percent(&line, "5h"), "40%", "{line}");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
 }
 
 #[cfg(target_os = "macos")]
@@ -740,4 +859,57 @@ fn sessions_calling_at_once_lose_nothing() {
         home.line(&paid_session("new", 0.0)),
         "today $12.00 · Opus 5.5"
     );
+}
+
+/// A session that reports 40% of the five hours and 10% of the week.
+fn limits_event(session: &str) -> Value {
+    let now = Timestamp::now().as_second();
+    limits(session, 1000, (40.0, now + 3600), (10.0, now + 86_400))
+}
+
+#[test]
+fn profiles_keep_their_own_numbers() {
+    // two Claude Code profiles are two logins: one's limits are not the
+    // other's
+    let home = Home::new();
+    let profile = home.path().join("profile");
+    fs::create_dir_all(&profile).expect("profile folder");
+    let line = home.line_with(
+        &limits_event("a"),
+        &[("CLAUDE_CONFIG_DIR", profile.as_os_str())],
+    );
+    assert_eq!(percent(&line, "5h"), "40%", "{line}");
+    assert_eq!(home.line(&fresh_session("b")), "limits: no data");
+}
+
+#[test]
+fn store_that_cannot_be_written_says_so() {
+    // without the store, sessions don't share their numbers and the server
+    // is never asked: the line says why it shows less
+    let home = Home::new();
+    let blocked = home.path().join("blocked");
+    fs::write(&blocked, "").expect("a file in the way");
+    let line = home.line_with(
+        &limits_event("a"),
+        &[
+            ("XDG_CACHE_HOME", blocked.as_os_str()),
+            ("LOCALAPPDATA", blocked.as_os_str()),
+        ],
+    );
+    assert!(line.ends_with(" · can't write cache"), "{line}");
+    assert_eq!(percent(&line, "5h"), "40%", "{line}");
+}
+
+#[cfg(unix)]
+#[test]
+fn store_files_are_not_written_through_links() {
+    // a link planted where the lock goes must not empty the file it names
+    let home = Home::new();
+    let dir = home.store().parent().expect("store directory").to_owned();
+    fs::create_dir_all(&dir).expect("store directory");
+    let victim = home.path().join("victim");
+    fs::write(&victim, "keep me").expect("victim");
+    std::os::unix::fs::symlink(&victim, dir.join("limits.lock")).expect("link");
+    home.line(&limits_event("a"));
+    assert_eq!(fs::read_to_string(&victim).expect("victim"), "keep me");
 }

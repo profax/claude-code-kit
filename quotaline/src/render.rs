@@ -208,6 +208,23 @@ mod tests {
     }
 
     #[test]
+    fn names_carry_no_control_characters() {
+        // a store anyone can edit and a session's data would otherwise send
+        // their escape sequences to the terminal
+        let event = json!({"model": {"display_name": "Opus\x1b]0;title\x07 5.5"},
+                           "effort": {"level": "hi\x1b[2Jgh"}});
+        assert_eq!(
+            model(&event).unwrap(),
+            "\x1b[1;35mOpus]0;title 5.5\x1b[0m \x1b[38;5;243mhi[2Jgh\x1b[0m"
+        );
+        let kept = json!({"scoped": [{"name": "Fa\x1b[31mble\u{9b}", "used_percentage": 5.0, "resets_at": 1000}]});
+        assert_eq!(
+            scoped(&kept, 0),
+            ["\x1b[38;5;243mfa[31mble\x1b[0m 5%"]
+        );
+    }
+
+    #[test]
     fn model_with_effort() {
         let event = json!({"model": {"display_name": "Opus 5.5"}, "effort": {"level": "xhigh"}});
         assert_eq!(
