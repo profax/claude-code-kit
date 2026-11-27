@@ -9,9 +9,10 @@ import { fit, parseBmp, toCells } from './pixels'
 import { forgetSystem, show, systemOf } from './system'
 import type { System } from './system'
 import { Ledger } from './ledger'
+import { forgetReaders, saidBy, write } from './readers'
 import type { Row } from './ledger'
 import { idsIn, PROMPT_AT, tokensOn } from './tokens'
-import { readerCommand, windowCommand } from './window'
+import { windowCommand } from './window'
 import type { Pixels } from './pixels'
 import type { Picture, Shown } from '../types'
 
@@ -51,19 +52,6 @@ const WINDOW_LIFE = 120
 const WINDOW_RETRY_MS = 5 * 60 * 1000
 // How many pictures' pixels are kept: each takes megabytes, and an older one is read again.
 const KEPT = 8
-// What reads a picture, tried in this order: magick is ImageMagick 7 and convert ImageMagick 6
-// (Ubuntu has the latter, NixOS both; on Windows `convert` is a disk tool), then what the system
-// has of its own, sips on macOS and PowerShell with System.Drawing on Windows and under WSL.
-type Tool = 'magick' | 'convert' | 'sips' | 'powershell'
-// What ImageMagick may take to read a pasted picture: a crafted one could otherwise fill the
-// memory or the disk, or keep it busy for good.
-const LIMITS = ['-limit', 'memory', '256MiB', '-limit', 'map', '512MiB', '-limit', 'area', '128MP', '-limit', 'disk', '1GiB', '-limit', 'time', '30']
-const TOOLS: Record<System, Tool[]> = {
-  linux: ['magick', 'convert'],
-  macos: ['magick', 'convert', 'sips'],
-  windows: ['magick', 'powershell'],
-  wsl: ['magick', 'convert', 'powershell']
-}
 
 const sameIds = (a: readonly number[], b: readonly number[] = []) => a.length === b.length && a.every((id, i) => id === b[i])
 
@@ -87,7 +75,6 @@ let windowed = false
 let canWindow = false
 let windowsOff = 0
 let popup: { id: number; isOpen: boolean } | undefined
-let tool: Tool | undefined
 const thumbs = new Map<number, Pixels>()
 const loading = new Set<number>()
 const failed = new Set<number>()
@@ -178,44 +165,6 @@ async function fileOf ($: Engine, id: number) {
   return name && /^\d+\.[a-z]+$/.test(name) ? join(found, 'images', name) : undefined
 }
 
-/** How `name` is run to write `file` as `format` to `name` in the folder `dir`. */
-async function reading ($: Engine, name: Tool, file: string, dir: string, out: string, format: 'bmp' | 'png', side?: string) {
-  if (name === 'sips') {
-    // sips has no "only shrink": `-Z` also stretches a small picture, which a card does not mind.
-    return { argv: ['sips', '-s', 'format', format, ...(side ? ['-Z', side.replace('>', '')] : []), file, '--out', join(dir, out)] }
-  }
-  if (name === 'powershell') return readerCommand(file, dir, out, format, side, await $.env.get('WSLENV'))
-  const size = side && `${side.replace('>', '')}x${side}`
-  return { argv: [name, ...LIMITS, file, ...(size ? ['-resize', size] : []), `${format === 'bmp' ? 'BMP3' : 'PNG'}:${join(dir, out)}`] }
-}
-
-type Run = { exitCode: number; stderr: string }
-/** What a program that failed said: its first line on stderr less its own name, or its exit code. */
-const saidBy = (name: string, result: Run) =>
-  result.stderr.split(/\r?\n/).map(line => line.trim()).find(Boolean)?.replace(new RegExp(`^${name}: `), '').slice(0, 200) || `exit code ${result.exitCode}`
-/** A shell's code for a program it could not find. */
-const NOT_FOUND = 127
-
-/**
- * Writes `file` as `format` to `out` in the folder `dir`, with the first program that manages it,
- * its longer side `side` (`n` stretched or shrunk to it, `n>` only shrunk; without it, as it is).
- * True once one has; otherwise the first program that ran and failed, with what it said, or
- * undefined when none could be run.
- */
-async function convert ($: Engine, file: string, dir: string, out: string, format: 'bmp' | 'png', side?: string) {
-  let refused: { name: Tool; said: string } | undefined
-  for (const name of tool ? [tool] : TOOLS[system]) {
-    const { argv, env } = await reading($, name, file, dir, out, format, side) as { argv: string[]; env?: Record<string, string> }
-    const result = await $.process.run(argv, env && { env }).catch(() => undefined)
-    if (result?.exitCode === 0) {
-      tool = name
-      return true
-    }
-    if (result && result.exitCode !== NOT_FOUND) refused ??= { name, said: saidBy(name, result) }
-  }
-  return refused
-}
-
 async function makeFolder ($: Engine, path: string) {
   if (madeFolder === path) return
   const fail = (why: string) => { throw new Error(`can't create the cache folder: ${why}`) }
@@ -231,7 +180,7 @@ async function makeFolder ($: Engine, path: string) {
 }
 
 async function decode ($: Engine, file: string, dir: string, out: string): Promise<Pixels> {
-  const done = await convert($, file, dir, out, 'bmp', String(SOURCE_PIXELS))
+  const done = await write($, system, file, dir, out, 'bmp', { pixels: SOURCE_PIXELS, isShrinkOnly: false })
   if (done !== true) {
     // ImageMagick is named only where it is missing: a system reader runs only after it.
     throw new Error(!done ? 'needs ImageMagick to read it'
@@ -244,11 +193,11 @@ async function decode ($: Engine, file: string, dir: string, out: string): Promi
 
 async function pngOf ($: Engine, file: string, dir: string, out: string) {
   if (file.endsWith('.png')) return file
-  return (await convert($, file, dir, out, 'png')) === true ? join(dir, out) : undefined
+  return (await write($, system, file, dir, out, 'png')) === true ? join(dir, out) : undefined
 }
 
 async function viewOf ($: Engine, file: string, dir: string, out: string) {
-  if ((await convert($, file, dir, out, 'png', `${VIEW_PIXELS}>`)) !== true || (await $.fs.stat(join(dir, out))).size > VIEW_BYTES) return undefined
+  if ((await write($, system, file, dir, out, 'png', { pixels: VIEW_PIXELS, isShrinkOnly: true })) !== true || (await $.fs.stat(join(dir, out))).size > VIEW_BYTES) return undefined
   return (await $.fs.read(join(dir, out), { as: 'bytes' })).base64
 }
 
@@ -542,7 +491,7 @@ export const register: Register = (on) => {
     forgetSystem()
     detecting = undefined
     await detect($)
-    tool = undefined
+    forgetReaders()
     temp = undefined
     // Over SSH the window would open on another machine's desktop.
     canWindow = (system === 'windows' || system === 'wsl') && graphics === 'none' && e.isInteractive && sshConnection === undefined && sshTty === undefined

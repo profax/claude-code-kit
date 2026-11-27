@@ -76,6 +76,10 @@ session watches the folder and picks up your edits.
   caller. No history of changes in comments: that is what `git log` is for.
 - Everything is in English except `README.ru.md`. `cargo test -p checks`
   enforces this.
+- A hooks module may hand `$` only to a plain function, `load($, id)`, never
+  to a method, `reader.write($)`: Claude Code refuses to load a module that
+  does. State a function needs lives in its module; state without `$` may
+  live in an object.
 
 ## Releasing
 
