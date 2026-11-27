@@ -10,7 +10,8 @@ first so we can agree on the approach before you write it.
 - `plugins/LICENSE`: the notice of the MIT code the plugins started from.
   An installed plugin is a copy of its own folder, so each plugin folder
   carries the same file; `cargo test -p checks` keeps the three copies equal.
-- `hooks/printable.ts`, `hooks/screen.ts`, `hooks/size.ts`, `hooks/system.ts`:
+- `hooks/base64.d.ts`, `hooks/printable.ts`, `hooks/screen.ts`, `hooks/size.ts`,
+  `hooks/system.ts`:
   the same modules in both plugins, since neither can import from the other;
   `cargo test -p checks` keeps the two copies of each equal.
 - `quotaline/`: the status line, a Rust program.
