@@ -35,7 +35,6 @@ const MAX_ROWS = 48
 // row, the logo.
 const BOTTOM_ROWS = 7
 const HEADER_ROWS = 4
-const MIN_FLOAT_ROWS = 10
 const MIN_CARD_ROWS = 6
 // The card's frame and caption.
 const CARD_COLUMNS = 2
@@ -637,16 +636,15 @@ async function chipsUnder ($: Engine, e: Row): Promise<RenderElement[]> {
 }
 
 /**
- * Where the card floats: never over the label that opened it, and only over rows drawn before the
- * one it stands on (one drawn later paints over it).
- *
- * From a band chip: over the rows above the end of the lowest row on screen; in the band itself
- * when there are few rows. From a sent prompt (`prompt`): over the rows above the prompt or under
- * its list, whichever has more room, and under the list when the prompt itself is off screen;
- * nowhere when it fits neither. Only known rows count, so the count is never too high.
+ * Where the card goes. From a band chip: in the band, above the prompt box, where it covers no text.
+ * From a sent prompt (`prompt`) it floats, never over the label that opened it and only over rows
+ * drawn before the one it stands on (one drawn later paints over it): over the rows above the
+ * prompt or under its list, whichever has more room, and under the list when the prompt itself is
+ * off screen; nowhere when it fits neither. Only known rows count, so the count is never too high.
  */
 function placeOf (id: number, target: string, prompt?: string): Shown | null {
   if (windowed) return { id, target, host: null, rows: 0, edge: 'window' }
+  if (prompt === undefined) return { id, target, host: null, rows: 0, edge: 'last' }
   const order = transcriptOrder()
   const showing = [...rows]
     .filter(([requestId, row]) => !!row.onScreen && !isReplaced(requestId, row))
@@ -662,13 +660,6 @@ function placeOf (id: number, target: string, prompt?: string): Shown | null {
   const isFull = top !== undefined && (top.onScreen.first > 0 || [...rows.values()].some(row => row.onScreen === null))
   const count = (list: typeof showing) => list.reduce((sum, [, row]) => sum + row.onScreen.last - row.onScreen.first + 1, 0)
 
-  if (prompt === undefined) {
-    // One line is kept spare: the count of lines above is approximate.
-    const above = !lowest ? 0 : (isFull ? room : Math.min(room, HEADER_ROWS + count(showing))) - 1
-    return above >= MIN_FLOAT_ROWS
-      ? { id, target, host: lowest![0], rows: above, edge: 'last' }
-      : { id, target, host: null, rows: 0, edge: 'last' }
-  }
   const at = showing.findIndex(([requestId]) => requestId === prompt)
   if (at === -1) {
     // A hidden prompt whose list still shows (`hiddenPromptAbove`) has its list at the top: the
@@ -690,13 +681,13 @@ function placeOf (id: number, target: string, prompt?: string): Shown | null {
 /**
  * Keeps the open card in step with the transcript. A sent prompt's token moves with the prompt and
  * says nothing when it slides from under a pointer that stays still: so its card closes on any
- * move. The band's chips stay where they are, and their card follows the lowest row.
+ * move. The band's chips stay where they are, and so does their card.
  */
 async function settle ($: Engine) {
   if (seenRows === seenAtLastLook) isBatching = false
   seenAtLastLook = seenRows
   if (!hasShown || moves === movesShown) return
-  await change($, now => !now ? null : !isFromPrompt(now) ? placeFor(now.id, now.target) : moves === movesShown ? now : null)
+  await change($, now => !now || !isFromPrompt(now) ? now : moves === movesShown ? now : null)
 }
 
 /**
@@ -873,8 +864,7 @@ export const register: Register = (on) => {
     return float($, e, drawn, overlays)
   })
 
-  // The draft's images as chips above the prompt box. The card floats over the transcript, and
-  // where the rows are few the band holds it.
+  // The draft's images as chips above the prompt box, and the card one of them opened.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // Off fullscreen the terminal reports no pointer: there is nothing to hover with.
     if (e.surface !== 'terminal' || e.props.hasSurvey || e.viewport?.isFullscreen === false) return next(e)
