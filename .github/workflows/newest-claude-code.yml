@@ -21,7 +21,8 @@ jobs:
           persist-credentials: false
       # As in ci.yml, only Claude Code's own install script runs
       - run: npm ci --ignore-scripts --no-fund --no-audit
-      - run: npm install --no-save --ignore-scripts --no-fund --no-audit @anthropic-ai/claude-code@latest
+      # The newest release is the point of this run, so it can't come from the lockfile
+      - run: npm install --no-save --ignore-scripts --no-fund --no-audit @anthropic-ai/claude-code@latest # zizmor: ignore[adhoc-packages]
       - run: node node_modules/@anthropic-ai/claude-code/install.cjs
       - run: npx claude --version
       - run: npm run validate
