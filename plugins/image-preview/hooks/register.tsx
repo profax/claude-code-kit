@@ -97,7 +97,10 @@ function logOnce ($: Engine, text: string) {
   $.ui.log(text, { to: 'debug' })
 }
 
-/** After /clear the image ids start from 1 again: what the session before had read is forgotten. */
+/**
+ * A new session, /clear included, keeps its images in a folder of its own while the image ids go
+ * on counting: what the session before had read is forgotten.
+ */
 async function followSession ($: Engine) {
   const id = await $.session.id()
   if (id === sessionId) return
