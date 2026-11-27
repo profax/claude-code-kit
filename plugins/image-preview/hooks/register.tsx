@@ -3,24 +3,21 @@
 // and under WSL a Windows window by the pointer shows it, and other terminals paint colored cells.
 // Based on image-preview from better-claude (MIT, ../LICENSE), without its macOS and Tk windows.
 import { atom, memberOf, read, update } from 'claude-code'
-import type { Elements, EngineInterface, EventOf, Register, RenderElement } from 'claude-code'
+import type { Elements, EngineInterface, Register, RenderElement } from 'claude-code'
 
 import { fit, parseBmp, toCells } from './pixels'
 import { forgetSystem, show, systemOf } from './system'
 import type { System } from './system'
+import { Ledger } from './ledger'
+import type { Row } from './ledger'
 import { idsIn, PROMPT_AT, tokensOn } from './tokens'
 import { readerCommand, windowCommand } from './window'
 import type { Pixels } from './pixels'
 import type { Picture, Shown } from '../types'
 
 type Engine = EngineInterface
-type RenderOf<C extends string> = Extract<EventOf['ui.render'], { component: C, surface: 'terminal' }>
 type Bounds = { columns: number; rows: number }
 type Ui = Elements['terminal']
-
-// The transcript rows: a card floats over the rows above the end of one of them.
-type Row = RenderOf<'UserMessage' | 'AssistantMessage' | 'ToolUse' | 'ToolResult' | 'ToolGroup' | 'CommandOutput' | 'TurnDuration' | 'InfoNotice'>
-type OnScreen = NonNullable<Row['props']['onScreen']>
 
 const draft = atom({ plugin: 'image-preview', key: 'draft' } as const, [] as number[])
 const pictures = atom({ plugin: 'image-preview', key: 'pictures' } as const, {} as Record<string, Picture>)
@@ -33,11 +30,6 @@ const NO_FOLDER = "can't find this session's image folder"
 const SOURCE_PIXELS = 800
 const MAX_COLUMNS = 160
 const MAX_ROWS = 48
-// Below the transcript the screen holds the band, the prompt box and its hints; above the first
-// row, the logo.
-const BOTTOM_ROWS = 7
-const HEADER_ROWS = 4
-const MIN_CARD_ROWS = 6
 // The card's frame and caption.
 const CARD_COLUMNS = 2
 const CARD_ROWS = 3
@@ -101,21 +93,9 @@ const loading = new Set<number>()
 const failed = new Set<number>()
 const cells = new Map<string, string>()
 const views = new Map<number, string>()
-// Every transcript row drawn, by requestId: what it is, when it was first drawn and how many rows
-// had been first drawn by its latest drawing, whether it came in the batch a session starts with,
-// which of its rows are on screen, and the text of a composer prompt with `[Image #N]` in it. The
-// move counter closes a card once its label may have left the pointer.
-type Noted = { component: Row['component']; seen: number; drawnAt: number; isBatch: boolean; onScreen: OnScreen | null | undefined; text?: string }
-const rows = new Map<string, Noted>()
-let seenRows = 0
-let cachedOrder: Map<string, number> | undefined
-let cachedOrderSeen = -1
-// The module loads when a session starts or on a reload, and the engine draws every row at once.
-let isBatching = true
+const ledger = new Ledger()
 let seenAtLastLook = 0
-let moves = 0
 let movesShown = 0
-let screenRows = 40
 let draftIds: number[] = []
 let hasShown = false
 let poll: { cancel: () => void } | undefined
@@ -135,12 +115,7 @@ function logOnce ($: Engine, text: string) {
 async function follow ($: Engine) {
   const id = await $.session.id()
   if (id === sessionId) return
-  if (sessionId !== undefined) {
-    rows.clear()
-    cachedOrder = undefined
-    cachedOrderSeen = -1
-    moves++
-  }
+  if (sessionId !== undefined) ledger.clear()
   sessionId = id
   folder = undefined
   madeFolder = undefined
@@ -446,7 +421,7 @@ function change ($: Engine, next: (now: Shown | null) => Shown | null) {
   const run = changing.then(async () => {
     const last = await read($, shown)
     const to = next(last)
-    movesShown = moves
+    movesShown = ledger.moves
     hasShown = to !== null
     if (sameShown(last, to)) return
     await update($, shown, () => to)
@@ -464,99 +439,9 @@ const isFromPrompt = (now: Shown) => /\/(sent|token):/.test(now.target)
 const closeChipCard = (now: Shown | null) => (now && !isFromPrompt(now) ? null : now)
 
 /** A target is `<site>/<chip key>`; for the tokens of a sent prompt the site is the prompt itself. */
-const placeFor = (id: number, target: string) => placeOf(id, target, /\/chip:/.test(target) ? undefined : target.slice(0, target.indexOf('/')))
-
-/**
- * Notes a transcript row before the first await, so in the transcript's order. True when a prompt
- * with labels went out of the viewport or came back: the row under its list draws its chips
- * meanwhile (`chipsUnder`), and the engine would not draw that row again if it did not move.
- */
-function note (e: Row) {
-  if (e.viewport && e.viewport.rows !== screenRows) {
-    screenRows = e.viewport.rows
-    moves++
-  }
-  const onScreen = e.props.onScreen
-  const row = rows.get(e.requestId)
-  if (!row) {
-    const seen = seenRows++
-    const text = e.component === 'UserMessage' && e.props.origin.kind === 'composer' && idsIn(e.props.text).length > 0 ? e.props.text : undefined
-    rows.set(e.requestId, { component: e.component, seen, drawnAt: seenRows, isBatch: isBatching, onScreen, ...(text !== undefined && { text }) })
-    moves++
-    return false
-  }
-  row.drawnAt = seenRows
-  const isHidden = row.onScreen === null
-  if (row.onScreen?.first !== onScreen?.first || row.onScreen?.last !== onScreen?.last || row.onScreen?.of !== onScreen?.of || isHidden !== (onScreen === null)) {
-    row.onScreen = onScreen
-    moves++
-  }
-  return row.text !== undefined && isHidden !== (onScreen === null)
-}
-
-/**
- * A row the engine drew under a temporary id and then replaced: a prompt before it is stored
- * (`placeholder`, replaced by the very next row) and a tool group until its turn ends
- * (`collapsed-toolu_…`). The engine never draws a replaced row again, so its last place on screen
- * would inflate the count of lines for good.
- */
-function isReplaced (requestId: string, row: Noted) {
-  if (requestId === 'placeholder') return seenRows > row.drawnAt
-  if (!requestId.startsWith('collapsed-toolu_')) return false
-  for (const other of rows.values()) if (other.component === 'TurnDuration' && other.seen >= row.drawnAt) return true
-  return false
-}
-
-/**
- * The rows in the transcript's order. A row drawn as the session goes is where it was drawn. The
- * batch a session starts with, or a reload, comes in two passes, the prompts apart from the rest:
- * each prompt is put at the start of its turn, after the duration row of the turn before, the last
- * prompt with the last turn.
- */
-function transcriptOrder () {
-  if (cachedOrder && cachedOrderSeen === seenRows) return cachedOrder
-  const bySeen = (a: [string, Noted], b: [string, Noted]) => a[1].seen - b[1].seen
-  const batch = [...rows].filter(([, row]) => row.isBatch).sort(bySeen)
-  const notices = batch.filter(([, row]) => row.component === 'InfoNotice')
-  const prompts = batch.filter(([, row]) => row.component === 'UserMessage')
-  const others = batch.filter(([, row]) => row.component !== 'InfoNotice' && row.component !== 'UserMessage')
-  const starts = [0, ...others.flatMap(([, row], i) => (row.component === 'TurnDuration' && i + 1 < others.length ? [i + 1] : []))]
-  const before = new Map<number, string[]>()
-  prompts.forEach(([id], i) => {
-    const at = starts[Math.max(0, starts.length - (prompts.length - i))]!
-    before.set(at, [...(before.get(at) ?? []), id])
-  })
-  const ordered = [...notices.map(([id]) => id), ...others.flatMap(([id], i) => [...(before.get(i) ?? []), id])]
-  if (others.length === 0) ordered.push(...prompts.map(([id]) => id))
-  const order = new Map(ordered.map((id, i) => [id, i]))
-  for (const [id, row] of rows) if (!row.isBatch) order.set(id, ordered.length + row.seen)
-  cachedOrder = order
-  cachedOrderSeen = seenRows
-  return order
-}
-
-/**
- * The composer prompt with labels right above transcript row `requestId`, while the engine draws
- * that prompt outside the viewport (`onScreen` null). Its rows may be gone under the top row while
- * the list of its images, drawn by the engine between it and this row, still shows: the engine
- * then hit-tests nothing the prompt drew, its chips over the list included.
- */
-function hiddenPromptAbove (requestId: string) {
-  const order = transcriptOrder()
-  const mine = order.get(requestId)
-  if (mine === undefined) return undefined
-  let above: string | undefined
-  let aboveAt = -Infinity
-  for (const [id, at] of order) {
-    const row = rows.get(id)
-    if (at < mine && at > aboveAt && row && !isReplaced(id, row)) {
-      above = id
-      aboveAt = at
-    }
-  }
-  const row = above === undefined ? undefined : rows.get(above)
-  return row?.text !== undefined && row.onScreen === null ? above : undefined
-}
+const placeFor = (id: number, target: string): Shown | null => windowed
+  ? { id, target, host: null, rows: 0, edge: 'window' }
+  : ledger.placeOf(id, target, /\/chip:/.test(target) ? undefined : target.slice(0, target.indexOf('/')))
 
 /**
  * Chips over the list of a hidden prompt's images (`hiddenPromptAbove`), drawn from the row under
@@ -564,8 +449,8 @@ function hiddenPromptAbove (requestId: string) {
  * as the prompt's `sent:N`.
  */
 async function chipsUnder ($: Engine, e: Row): Promise<RenderElement[]> {
-  const prompt = hiddenPromptAbove(e.requestId)
-  const text = prompt === undefined ? undefined : rows.get(prompt)?.text
+  const prompt = ledger.hiddenPromptAbove(e.requestId)
+  const text = prompt === undefined ? undefined : ledger.rows.get(prompt)?.text
   if (text === undefined) return []
   const all = await read($, pictures)
   // The engine lists each stored image, read or not, in the order pasted.
@@ -582,58 +467,15 @@ async function chipsUnder ($: Engine, e: Row): Promise<RenderElement[]> {
 }
 
 /**
- * Where the card goes. From a band chip: in the band, above the prompt box, where it covers no text.
- * From a sent prompt (`prompt`) it floats, never over the label that opened it and only over rows
- * drawn before the one it stands on (one drawn later paints over it): over the rows above the
- * prompt or under its list, whichever has more room, and under the list when the prompt itself is
- * off screen; nowhere when it fits neither. Only known rows count, so the count is never too high.
- */
-function placeOf (id: number, target: string, prompt?: string): Shown | null {
-  if (windowed) return { id, target, host: null, rows: 0, edge: 'window' }
-  if (prompt === undefined) return { id, target, host: null, rows: 0, edge: 'last' }
-  const order = transcriptOrder()
-  const showing = [...rows]
-    .filter(([requestId, row]) => !!row.onScreen && !isReplaced(requestId, row))
-    .map(([id, row]) => [id, { order: order.get(id)!, onScreen: row.onScreen! }] as const)
-  // A row first drawn late (scrolled into view) stands where the screen's edge cuts it.
-  const placeOn = ({ order, onScreen }: { order: number; onScreen: OnScreen }) =>
-    onScreen.first > 0 ? -Infinity : onScreen.last < onScreen.of - 1 ? Infinity : order
-  showing.sort((a, b) => placeOn(a[1]) - placeOn(b[1]) || a[1].order - b[1].order)
-  const room = screenRows - BOTTOM_ROWS
-  const lowest = showing.at(-1)
-  const top = showing[0]?.[1]
-  // A row off screen, or a first row that is cut, means the transcript fills the screen.
-  const isFull = top !== undefined && (top.onScreen.first > 0 || [...rows.values()].some(row => row.onScreen === null))
-  const count = (list: typeof showing) => list.reduce((sum, [, row]) => sum + row.onScreen.last - row.onScreen.first + 1, 0)
-
-  const at = showing.findIndex(([requestId]) => requestId === prompt)
-  if (at === -1) {
-    // A hidden prompt whose list still shows (`hiddenPromptAbove`) has its list at the top: the
-    // card goes under the list, over the rows that follow the prompt.
-    const from = order.get(prompt)
-    if (from === undefined || rows.get(prompt)?.onScreen !== null) return null
-    const under = Math.min(room, count(showing.filter(([, row]) => row.order > from)))
-    return under < MIN_CARD_ROWS ? null : { id, target, host: lowest![0], rows: under, edge: 'last' }
-  }
-  const message = showing[at]![1].onScreen
-  const above = message.first > 0 ? 0 : Math.min(room, count(showing.slice(0, at)) + (isFull ? 0 : HEADER_ROWS) + 1)
-  const under = Math.min(room, count(showing.slice(at + 1)))
-  if (Math.max(above, under) < MIN_CARD_ROWS) return null
-  return above >= under
-    ? { id, target, host: prompt, rows: above, edge: 'first' }
-    : { id, target, host: lowest![0], rows: under, edge: 'last' }
-}
-
-/**
  * Keeps the open card in step with the transcript. A sent prompt's token moves with the prompt and
  * says nothing when it slides from under a pointer that stays still: so its card closes on any
  * move. The band's chips stay where they are, and so does their card.
  */
 async function settle ($: Engine) {
-  if (seenRows === seenAtLastLook) isBatching = false
-  seenAtLastLook = seenRows
-  if (!hasShown || moves === movesShown) return
-  await change($, now => !now || !isFromPrompt(now) ? now : moves === movesShown ? now : null)
+  if (ledger.seenRows === seenAtLastLook) ledger.isBatching = false
+  seenAtLastLook = ledger.seenRows
+  if (!hasShown || ledger.moves === movesShown) return
+  await change($, now => !now || !isFromPrompt(now) ? now : ledger.moves === movesShown ? now : null)
 }
 
 /**
@@ -753,7 +595,7 @@ export const register: Register = (on) => {
     const chip = /^(chip|sent|token|list):(\d+)$/.exec(e.element)
     if (!chip) return result
     // A chip the row under a hidden prompt drew over the prompt's list stands for the prompt's own.
-    const site = chip[1] === 'list' ? hiddenPromptAbove(e.requestId) : e.requestId
+    const site = chip[1] === 'list' ? ledger.hiddenPromptAbove(e.requestId) : e.requestId
     if (site === undefined) return result
     const target = chip[1] === 'list' ? `${site}/sent:${chip[2]}` : `${site}/${e.element}`
     const data = e.data as { isOver?: unknown; isClicked?: unknown } | null
@@ -773,7 +615,7 @@ export const register: Register = (on) => {
   // row: each gets an unpainted chip over it, so the engine's row shows as it was.
   on('ui.render', { component: ['UserMessage', 'AssistantMessage', 'ToolUse', 'ToolResult', 'ToolGroup', 'CommandOutput', 'TurnDuration', 'InfoNotice'] }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.viewport?.isFullscreen === false) return next(e)
-    if (note(e)) $.ui.invalidate('ui.render')
+    if (ledger.note(e)) $.ui.invalidate('ui.render')
     if (e.component !== 'UserMessage') return float($, e, await next(e))
     const ids = e.props.origin.kind === 'composer' ? idsIn(e.props.text) : []
     if (ids.length === 0) return float($, e, await next(e))
@@ -821,7 +663,7 @@ export const register: Register = (on) => {
     const [ids, now] = await Promise.all([read($, draft), read($, shown)])
     const inBand = now && now.host === null && now.edge !== 'window' ? now.id : undefined
     if (ids.length === 0 && inBand === undefined) return next(e)
-    if (e.viewport) screenRows = e.viewport.rows
+    if (e.viewport) ledger.screenRows = e.viewport.rows
 
     const ui = $.ui.resolve(e)
     const { Box, Client, Text } = ui
