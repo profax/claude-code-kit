@@ -322,15 +322,23 @@ test('the last reply on a full screen keeps its card over the path, whole', asyn
   expect(await cardRows(ui)).toEqual({ top: -8, bottom: 0, lines: 7 })
 })
 
-test('a card short of room over its path stays there, shorter, rather than under rows drawn after it', async ($, on) => {
-  // Seen in Ghostty: a card under the path lay beneath the turn's "Churned for 0s" line and the
-  // next prompt, which paint over it.
+test('a card under its path lies over the rows drawn after it, whole', async ($, on) => {
+  // Seen in Ghostty: the turn's "Churned for 0s" line and the next prompt, drawn after the reply,
+  // painted over the card. The row under it draws the card again, over itself, shown with it.
   world(on)
   await startSession($)
   await shownAt($, 'a-0', 'Nada que ver aquí', { first: 7, last: 9, of: 10 })
   const ui = await shownAt($, 'a-1', 'Mira src/app.ts', { first: 0, last: 0, of: 1 })
-  await shownAt($, 'a-2', 'Nada que ver aquí', { first: 0, last: 29, of: 30 })
-  expect(await cardRows(ui)).toEqual({ top: -3, bottom: 0, lines: 2 })
+  const below = await shownAt($, 'a-2', 'Nada que ver aquí', { first: 0, last: 29, of: 30 })
+  expect(await cardRows(ui)).toEqual({ top: 1, bottom: 9, lines: 7 })
+  const copy = (await below.findAll({ type: 'Box' })).find(box => box.props.position === 'absolute')!
+  expect(copy.props.display).toBe('none')
+  // From the foot of the row under the reply, 30 lines down from the path: the card's 8 rows start
+  // one line under the path.
+  expect(copy.props.bottom).toBe(30 + 1 - 1 - 8)
+  // As wide as the reply, the card starts at its first column, past the bullet.
+  expect(copy.props.left).toBe(2)
+  expect(await below.find({ type: 'Code' })).toBeDefined()
 })
 
 test('as the rows above scroll away, a card that no longer fits over its path is drawn again shorter', async ($, on) => {
