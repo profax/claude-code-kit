@@ -31,10 +31,11 @@ export const WINDOWS = String.raw`
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 ${OPEN_PICTURE}
-$largest = if ($env:IMAGE_PREVIEW_SIZE) { [int]$env:IMAGE_PREVIEW_SIZE } else { 800 }
-$life = if ($env:IMAGE_PREVIEW_LIFE) { [int]$env:IMAGE_PREVIEW_LIFE } else { 120 }
+$largest = [int]$env:IMAGE_PREVIEW_SIZE
+$life = [int]$env:IMAGE_PREVIEW_LIFE
 # A window that takes no focus, stays on top and lets the pointer through, and the scale of the
-# screen. Compiled once into the temp folder: compiling takes a second.
+# screen. Compiled once into the temp folder: compiling takes a second. A changed class needs a new
+# file name, or the one compiled before loads.
 $assembly = Join-Path $env:TEMP 'image-preview-popup-2.dll'
 if (-not (Test-Path $assembly)) {
   try {
@@ -123,7 +124,7 @@ $beat.Start()
 `
 
 /** The script as `-EncodedCommand` takes it: UTF-16LE in base64. */
-export function encodedCommand (script: string) {
+function encodedCommand (script: string) {
   const bytes = new Uint8Array(script.length * 2)
   for (let i = 0; i < script.length; i++) {
     const code = script.charCodeAt(i)

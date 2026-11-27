@@ -68,7 +68,7 @@ const placedOf = (requestId: string, spots: Spot[], slack: number) => JSON.strin
  * not otherwise redraw a reply that has not itself changed, while the room above it shrinks as it
  * is pushed up.
  */
-function follow ($: Engine, requestId: string) {
+function redrawMoved ($: Engine, requestId: string) {
   for (const [id, card] of linked) {
     if (id === requestId || (placedOf(id, card.spots, card.slack) === card.placed && reachOf(id) === card.copied)) continue
     $.ui.invalidate('ui.render')
@@ -341,7 +341,7 @@ export const register: Register = (on) => {
   // transcript rows are only noted: they tell how much room there is above a link and below it.
   on('ui.render', { component: [...TRANSCRIPT] }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.viewport?.isFullscreen !== true) return next(e)
-    if (ledger.note(e)) follow($, e.requestId)
+    if (ledger.note(e)) redrawMoved($, e.requestId)
     const ui = $.ui.resolve(e)
     const drawn = await drawRow($, e, next)
     const copies = copiesIn(ui, e.requestId)

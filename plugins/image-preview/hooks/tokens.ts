@@ -45,11 +45,11 @@ function layout (text: string, width: number) {
     if (!rows) return undefined
     for (const match of line.matchAll(TOKEN)) {
       const at = rows.findLastIndex(each => each.start <= match.index)
-      const { start, text: shown } = rows[at]!
+      const { start, text: drawn } = rows[at]!
       const column = match.index - start
       // A token split by a wrap has no place, and neither has one after a double space, which
       // the engine may collapse.
-      if (column + match[0].length > shown.length || text.slice(0, offset + match.index).includes('  ')) continue
+      if (column + match[0].length > drawn.length || text.slice(0, offset + match.index).includes('  ')) continue
       tokens.push({ id: Number(match[1]), row: row + at, column, length: match[0].length })
     }
     row += rows.length

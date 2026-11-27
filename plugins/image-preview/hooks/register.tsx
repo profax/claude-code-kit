@@ -99,7 +99,7 @@ function logOnce ($: Engine, text: string) {
 }
 
 /** After /clear the image ids start from 1 again: what the session before had read is forgotten. */
-async function follow ($: Engine) {
+async function followSession ($: Engine) {
   const id = await $.session.id()
   if (id === sessionId) return
   if (sessionId !== undefined) ledger.clear()
@@ -228,7 +228,7 @@ async function load ($: Engine, id: number) {
     // A resumed session draws its prompts before its start has named it: the session is learned
     // here first, or a picture read meanwhile would be dropped as another session's.
     await detect($)
-    await follow($)
+    await followSession($)
     loadingIn = sessionId
     // The engine writes the file just after the paste has put the token in the box.
     let file = await fileOf($, id)
@@ -460,7 +460,7 @@ async function float ($: Engine, e: Row, drawn: RenderElement, overlays: RenderE
 }
 
 async function track ($: Engine, text: string) {
-  await follow($)
+  await followSession($)
   const ids = idsIn(text)
   if (!sameIds(ids, draftIds)) {
     draftIds = ids
@@ -498,7 +498,7 @@ export const register: Register = (on) => {
     windowed = canWindow
     windowsOff++
     // A reload starts with an empty cache: what is in the box already is read again.
-    await follow($)
+    await followSession($)
     const [initialDraft, initialShown, box] = await Promise.all([read($, draft), read($, shown), $.prompt.read()])
     draftIds = initialDraft
     hasShown = initialShown !== null
@@ -590,9 +590,9 @@ export const register: Register = (on) => {
     // prompt's text is what opens the image. An image the engine did not attach to the prompt (a
     // large one goes to the model as a file) is not listed either: the token in the text is then
     // the only thing to hover.
-    const shown = e.props.onScreen
+    const onScreen = e.props.onScreen
     const placed = new Set<number>()
-    for (const { id, row, column, length } of tokensOn(e.props.text, e.viewport?.columns ?? 80, shown ? shown.of - 1 : undefined)) {
+    for (const { id, row, column, length } of tokensOn(e.props.text, e.viewport?.columns ?? 80, onScreen ? onScreen.of - 1 : undefined)) {
       const picture = all[id]
       if (placed.has(id) || !picture || 'error' in picture) continue
       placed.add(id)
