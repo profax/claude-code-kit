@@ -66,13 +66,16 @@ export class Ledger {
 
   /**
    * A row the engine drew under a temporary id and then replaced: a prompt before it is stored
-   * (`placeholder`, replaced by the very next row) and a tool group until its turn ends
-   * (`collapsed-toolu_…`). Its last place on screen would inflate the count of lines.
+   * (`placeholder`, replaced by the very next row) and a new tool group (`collapsed-toolu_…`,
+   * replaced by the next tool group row drawn or at the end of its turn). Its last place on screen
+   * would inflate the count of lines.
    */
   isReplaced (requestId: string, row: Seen) {
     if (requestId === 'placeholder') return this.seenRows > row.drawnAt
     if (!requestId.startsWith('collapsed-toolu_')) return false
-    for (const other of this.rows.values()) if (other.component === 'TurnDuration' && other.seen >= row.drawnAt) return true
+    for (const other of this.rows.values()) {
+      if ((other.component === 'TurnDuration' || other.component === 'ToolGroup') && other.seen >= row.drawnAt) return true
+    }
     return false
   }
 
