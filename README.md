@@ -203,11 +203,15 @@ requests to the server have failed for over an hour: only the server reports
 it. The line reads `limits: no data` when Claude Code passed nothing to show
 and no session has stored any limits yet.
 
-All sessions on a machine share what they learn, so an idle session shows
-fresh numbers too, and a new one shows them before its first reply.
+All sessions of a Claude Code profile on a machine share what they learn,
+so an idle session shows fresh numbers too, and a new one shows them before
+its first reply. A profile set by `CLAUDE_CONFIG_DIR` has a login of its own
+and keeps its numbers apart. When quotaline can't write its cache folder, the
+line ends with `can't write cache`: the sessions then show only what each
+one gets itself.
 
 A session billed by API key shows its cost and, next to it, the day's total
-for all such sessions on the machine, as in `$0.50 · today $1.74`. The total
+for all such sessions of the profile on the machine, as in `$0.50 · today $1.74`. The total
 is left out while it equals the session's cost. Both are Claude Code's
 estimates at list prices, not an invoice. If the machine also has a
 subscription login, the line shows that subscription's limits as well.
@@ -222,7 +226,8 @@ subscription login, the line shows that subscription's limits as well.
   it can't write its cache folder, where the sessions note when they last
   asked. It never refreshes or stores the token. It keeps the numbers in
   `quotaline/limits.json`, with a lock file next to it, in your cache folder
-  (`$XDG_CACHE_HOME` or `~/.cache`, or `%LOCALAPPDATA%` on Windows). `--setup`
+  (`$XDG_CACHE_HOME` or `~/.cache`, or `%LOCALAPPDATA%` on Windows); a
+  profile set by `CLAUDE_CONFIG_DIR` has its own `limits-<hash>.json`. `--setup`
   changes one key, `statusLine`, in the Claude Code settings, and only after
   you agree.
 - `image-preview` reads the images Claude Code stored for the session and
@@ -269,11 +274,11 @@ needed; on macOS, run its `xattr` command again.
 - The weekly limit of a single model, and the numbers before a session's
   first reply, come from a server endpoint that Claude Code uses but doesn't
   document. If it changes, the line falls back to what Claude Code reports.
-- On macOS, Claude Code keeps the login of a profile set by
-  `CLAUDE_CONFIG_DIR` in the keychain under a name quotaline doesn't look for.
-  In such a profile quotaline reads only `.credentials.json` in that folder.
-  Without that file the line gets no numbers from the server: no weekly limit
-  of a single model, and no limits before a session's first reply.
+- On macOS, the first time quotaline reads the login, macOS may ask whether
+  `security` may use the Claude Code entry in your keychain. Choose Always
+  Allow. quotaline waits for the keychain for a second and a half and then
+  shows the line without the server's numbers, trying again five minutes
+  later.
 
 ## Development
 

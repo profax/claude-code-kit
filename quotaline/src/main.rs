@@ -4,7 +4,8 @@
 //! every reply (`statusLine` in its settings), passes the session's data as
 //! JSON on stdin, and shows what the program prints.
 //!
-//! All sessions on the machine share one store, `limits.json`, so an idle
+//! All sessions of a Claude Code profile share one store, `limits.json`
+//! (with a suffix for a profile other than the default one), so an idle
 //! session shows the numbers a busy one has just received:
 //! - `five_hour`, `seven_day`: the freshest windows, in the shape Claude Code
 //!   reports them (`used_percentage`, `resets_at` in epoch seconds);
@@ -127,22 +128,55 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// Opens the lock file at `path`, made if missing. Neither truncated nor,
+/// on Unix, opened through a link: a link planted there would otherwise let
+/// the program empty or lock the file it names.
+fn lock_file(path: &std::path::Path) -> Option<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true).truncate(false);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::custom_flags(&mut options, libc::O_NOFOLLOW);
+    options.open(path).ok()
+}
+
+/// Writes the store to `path` through a new file and a rename: another
+/// session never reads half a file, and a file made anew is never one a
+/// link points at. Returns whether it worked.
+fn save(path: &std::path::Path, kept: &Value) -> bool {
+    use std::io::Write as _;
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(format!(".{}", std::process::id()));
+    let tmp = PathBuf::from(tmp);
+    let _ = fs::remove_file(&tmp);
+    let written = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .and_then(|mut file| file.write_all(kept.to_string().as_bytes()))
+        .and_then(|()| fs::rename(&tmp, path));
+    if written.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    written.is_ok()
+}
+
 /// Reads the session's data from stdin and prints the line.
 fn line() {
     let event: Value = serde_json::from_reader(std::io::stdin().lock()).unwrap_or_default();
     let dir = store_dir().filter(|dir| fs::create_dir_all(dir).is_ok());
+    let name = format!("limits{}", login::profile());
     // Sessions call the program at the same moment: without the lock one
     // would overwrite what another has just added. The lock lasts until the
     // process exits.
     let lock = dir
         .as_ref()
-        .and_then(|dir| fs::File::create(dir.join("limits.lock")).ok());
+        .and_then(|dir| lock_file(&dir.join(format!("{name}.lock"))));
     // Some file systems have no locks (a home on a network share): sessions
     // may then lose each other's numbers, and the store still works
     if let Some(lock) = &lock {
         let _ = lock.lock();
     }
-    let path = dir.as_ref().map(|dir| dir.join("limits.json"));
+    let path = dir.as_ref().map(|dir| dir.join(format!("{name}.json")));
     let mut kept: Value = path
         .as_ref()
         .and_then(|path| fs::read_to_string(path).ok())
@@ -165,17 +199,9 @@ fn line() {
         let day = Zoned::now().date().to_string();
         spend::tally(&mut kept, &event, &day, now);
     }
-    if kept != before
-        && let (Some(dir), Some(path)) = (&dir, &path)
-    {
-        // through a rename: another session never reads half a file
-        let tmp = dir.join(format!("limits.json.{}", std::process::id()));
-        if fs::write(&tmp, kept.to_string())
-            .and_then(|()| fs::rename(&tmp, path))
-            .is_err()
-        {
-            let _ = fs::remove_file(&tmp);
-        }
+    let mut saved = lock.is_some();
+    if kept != before {
+        saved &= path.as_ref().is_some_and(|path| save(path, &kept));
     }
     let money = if paid {
         spend::shown(&kept, &event)
@@ -190,6 +216,7 @@ fn line() {
         }))
         .chain(render::scoped(&kept, now))
         .chain(render::model(&event))
+        .chain((!saved).then(|| render::dim("can't write cache")))
         .collect();
     if parts.is_empty() {
         println!("limits: no data");

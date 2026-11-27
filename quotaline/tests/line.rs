@@ -831,7 +831,10 @@ fn failed_store_write_leaves_no_file_behind() {
     // can't take its place
     let home = Home::new();
     fs::create_dir_all(home.store().join("in the way")).expect("a directory in the way");
-    assert_eq!(home.line(&paid_session("a", 1.238)), "$1.24 · Opus 5.5");
+    assert_eq!(
+        home.line(&paid_session("a", 1.238)),
+        "$1.24 · Opus 5.5 · can't write cache"
+    );
     let left: Vec<String> = fs::read_dir(home.store().parent().expect("store directory"))
         .expect("store directory")
         .map(|entry| {
