@@ -137,7 +137,8 @@ export class Ledger {
     if (!room || room.up >= rows) return { top: -rows, lines: spot.lines }
     if (room.under.rows >= rows) return { top: room.under.top, lines: spot.lines }
     if (room.down >= rows) return { top: 1, lines: spot.lines }
-    const isUp = room.up >= room.down
+    // With no room above, the row above may be the logo's.
+    const isUp = room.up > 0 && room.up >= room.down
     const held = Math.max(1, isUp ? room.up : room.down)
     return { top: isUp ? -held : 1, lines: held - 1 }
   }
