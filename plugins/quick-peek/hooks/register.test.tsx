@@ -385,6 +385,13 @@ test('where no file manager answers, a click opens the folder the path is in', a
   expect(w.runs).toContainEqual(['xdg-open', FOLDER])
 })
 
+test('a reply with a long run of punctuation is read in linear time', () => {
+  // The rows are read while the reply is drawn: a slow reading holds the screen.
+  const started = performance.now()
+  expect(pathsIn(`see /${'.'.repeat(40000)}x`)).toHaveLength(1)
+  expect(performance.now() - started).toBeLessThan(250)
+})
+
 test('finds the paths Windows writes: from a drive, with either slash, relative, from home', () => {
   const found = (text: string) => pathsIn(text).map(({ start, end, target }) => [text.slice(start, end), target])
   expect(found('Saved to C:\\Users\\ana\\x.mp4. And D:/work/notes.md, see?')).toEqual([['C:\\Users\\ana\\x.mp4', 'C:\\Users\\ana\\x.mp4'], ['D:/work/notes.md', 'D:/work/notes.md']])
