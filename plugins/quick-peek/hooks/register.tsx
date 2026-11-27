@@ -301,20 +301,19 @@ function roomOf (requestId: string, above: number, slack: number) {
 }
 
 /**
- * The card goes above the path, and where it does not fit there, below: under the end of the
- * transcript, or with no room there right under the path. Fitting on neither side, it takes the
- * larger one, its heading and as many of the file's lines as fit. Above the path when the reply's
- * place on screen is not known.
+ * The card goes above the path, and where it does not fit there, under the end of the transcript.
+ * Fitting in neither, it takes the larger, its heading and as many of the file's lines as fit.
+ * Right under the path only with no clear row on either side, since what is drawn there paints
+ * over it. Above the path when the reply's place on screen is not known.
  */
 function placeOf (requestId: string, spot: Spot, slack: number): Place {
   const rows = 1 + spot.lines
   const room = roomOf(requestId, spot.above, slack)
   if (!room || room.up >= rows) return { top: -rows, lines: spot.lines }
   if (room.under.rows >= rows) return { top: room.under.top, lines: spot.lines }
-  if (room.down >= rows) return { top: 1, lines: spot.lines }
-  const isUp = room.up >= room.down
-  const held = Math.max(1, isUp ? room.up : room.down)
-  return { top: isUp ? -held : 1, lines: held - 1 }
+  if (room.up >= 1 && room.up >= room.under.rows) return { top: -room.up, lines: room.up - 1 }
+  if (room.under.rows >= 1) return { top: room.under.top, lines: room.under.rows - 1 }
+  return { top: 1, lines: Math.min(spot.lines, Math.max(1, room.down) - 1) }
 }
 
 const placedOf = (requestId: string, spots: Spot[], slack: number) => JSON.stringify(spots.map(spot => placeOf(requestId, spot, slack)))
