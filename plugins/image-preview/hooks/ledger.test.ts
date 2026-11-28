@@ -80,6 +80,32 @@ test('rows drawn a block at a time, the newest block first, stand in the transcr
     .toEqual([id(1), 'turn-0', id(2), id(3), `collapsed-${id(4)}`, id(5), 'turn-1', id(6), id(7), 'toolu_01Queue', 'queued-1', id(9), 'turn-2'])
 })
 
+test('a prompt queued while a turn ran stands right after the message stored before it, not after the row drawn before it', () => {
+  const noted = new Ledger()
+  noted.screenRows = 48
+  const id = (n: number) => `0000000${n}-aaaa-4bbb-8ccc-000000000000`
+  const uuid = (n: number) => `0000000${n}-aaaa-4bbb-8ccc-${String(n).padStart(12, '1')}`
+  // As Claude Code 2.1.332 drew a copy of a session scrolled back to a prompt with an image that
+  // was queued while a turn ran: the reply under the prompt was drawn before it.
+  noted.note(row('toolu_01Edit', 'ToolUse', { first: 2, last: 17, of: 18 }))
+  noted.note(row(`collapsed-${id(2)}`, 'ToolGroup', { first: 0, last: 1, of: 2 }))
+  noted.note(row(id(5), 'AssistantMessage', { first: 0, last: 1, of: 2 }))
+  noted.note(row(id(4), 'UserMessage', { first: 0, last: 1, of: 2 }, '[Image #6]'))
+  noted.note(row('toolu_01Next', 'ToolUse', { first: 0, last: 14, of: 16 }))
+  noted.learn([
+    { uuid: uuid(1), toolUses: [{ tool_use_id: 'toolu_01Edit' }] },
+    { uuid: uuid(2), toolUses: [] },
+    { uuid: uuid(3), toolUses: [] },
+    { uuid: uuid(5), toolUses: [] },
+    { uuid: uuid(6), toolUses: [{ tool_use_id: 'toolu_01Next' }] }
+  ])
+  // The queued prompt is an attachment of the session's file, stored after the tool result 3.
+  noted.learnQueued([{ uuid: uuid(4), after: [uuid(3), uuid(2)] }])
+  // Above the prompt the edit's 16 rows, the group's 2 and its own empty top row: the reply's 2
+  // rows are under it.
+  expect(noted.placeOf(6, `${id(4)}/sent:6`, id(4))).toEqual({ id: 6, target: `${id(4)}/sent:6`, host: id(4), rows: 19, edge: 'first' })
+})
+
 test('a sent prompt\'s card that fits neither side has no place', () => {
   const noted = ledger(10)
   noted.note(row('m-1', 'UserMessage', { first: 0, last: 1, of: 2 }, '[Image #1]'))

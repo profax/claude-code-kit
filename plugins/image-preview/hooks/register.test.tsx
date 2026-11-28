@@ -35,7 +35,7 @@ const posix = (path: string) => path.replace(/^\/.*\/(?=[A-Za-z]:\\)/, '').repla
  */
 function world (
   on: On,
-  { files = { '1.png': 300 * 1024 }, draft = '', env = {}, platform = 'linux', missing = [], refusing = {}, window = 'shown', readingMs = 0, pixels = [[RED, RED], [BLUE, BLUE]] }: { files?: Record<string, number>; platform?: 'linux' | 'macos' | 'windows'; draft?: string; env?: Record<string, string>; missing?: string[]; refusing?: Record<string, string>; window?: 'shown' | 'error'; readingMs?: number; pixels?: number[][] } = {}
+  { files = { '1.png': 300 * 1024 }, draft = '', env = {}, platform = 'linux', missing = [], refusing = {}, window = 'shown', readingMs = 0, pixels = [[RED, RED], [BLUE, BLUE]], transcript }: { files?: Record<string, number>; platform?: 'linux' | 'macos' | 'windows'; draft?: string; env?: Record<string, string>; missing?: string[]; refusing?: Record<string, string>; window?: 'shown' | 'error'; readingMs?: number; pixels?: number[][]; transcript?: string } = {}
 ) {
   const isWindows = platform === 'windows'
   const temp = isWindows ? posix(`${WIN_TEMP}\\claude`) : '/tmp/claude-501'
@@ -75,7 +75,10 @@ function world (
     const stdout = e.argv[0] === 'id' ? '501\n' : e.argv[0] === 'wslpath' ? `${windowsPath(e.argv[2]!)}\n` : ''
     return { value: { exitCode: missing.includes(e.argv[0]!) ? 127 : 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  on('fs.exists', ($, e) => ({ value: posix(e.path) === `${temp}/${project}/${session.id}/images` && session.id === 's-1' }))
+  // The session's file, where `transcript` is its text (all ASCII, so a byte is a character).
+  const file = `/home/ana/.claude/projects/${project}/${session.id}.jsonl`
+  const isFile = (path: string) => transcript !== undefined && posix(path) === file
+  on('fs.exists', ($, e) => ({ value: isFile(e.path) || (posix(e.path) === `${temp}/${project}/${session.id}/images` && session.id === 's-1') }))
   on('fs.list', ($, e) => ({
     value: posix(e.path) === `${folder}/images`
       ? Object.entries(files).map(([name, size]) => ({ name, kind: 'file' as const, size, mtimeMs: 0, isLink: false }))
@@ -83,8 +86,12 @@ function world (
         ? [{ name: project, kind: 'dir' as const, size: 0, mtimeMs: 0, isLink: false }]
         : []
   }))
-  on('fs.stat', ($, e) => ({ value: { kind: 'file' as const, size: files[posix(e.path).split('/').pop()!] ?? 0, mtimeMs: 0, isLink: false } }))
-  on('fs.read', ($, e) => ({ value: { base64: posix(e.path).endsWith('.png') ? PNG : bmp(pixels).toBase64() } }))
+  on('fs.stat', ($, e) => ({ value: { kind: 'file' as const, size: isFile(e.path) ? transcript!.length : files[posix(e.path).split('/').pop()!] ?? 0, mtimeMs: 0, isLink: false } }))
+  on('fs.read', ($, e) => {
+    // Claude Code 2.1.325 reads no range and has no `offset` in its types.
+    const { offset = 0, length = Infinity } = e as { offset?: number; length?: number }
+    return { value: isFile(e.path) ? transcript!.slice(offset, offset + length) : { base64: posix(e.path).endsWith('.png') ? PNG : bmp(pixels).toBase64() } }
+  })
   // Left to the engine, a write would land on the disk of the machine running the tests.
   on('fs.write', () => ({ value: undefined }))
   on('prompt.submit', ($, e) => ({ text: e.text }))
@@ -509,6 +516,36 @@ test('rows a resumed session draws a block at a time, the newest first, stand in
   } else {
     // Claude Code 2.1.325 refuses the read before it reaches a hook: the rows stand in the order drawn.
     expect(keyed(await last.drawn(), 'float-1')).toBeDefined()
+  }
+})
+
+test('a prompt queued while a turn ran stands where the session\'s file stored it, not after the reply drawn before it', async ($, on) => {
+  // A queued prompt is no message: the file has it as an attachment, between the messages.
+  const transcript = [
+    { type: 'assistant', uuid: 'a-1', isSidechain: false, message: { role: 'assistant', content: [] } },
+    { type: 'attachment', uuid: 'q-1', parentUuid: 'a-1', isSidechain: false, attachment: { type: 'queued_command', prompt: 'look at [Image #1]' } },
+    { type: 'assistant', uuid: 'a-2', isSidechain: false, message: { role: 'assistant', content: [] } },
+    { type: 'assistant', uuid: 'a-3', isSidechain: false, message: { role: 'assistant', content: [] } }
+  ].map(line => JSON.stringify(line) + '\n').join('')
+  const w = world(on, { files: { '1.png': 2048 }, env: { HOME: '/home/ana' }, transcript })
+  let isRead = false
+  on('session.messages', () => ((isRead = true), { value: ['a-1', 'a-2', 'a-3'].map(uuid => ({ role: 'assistant', text: '', toolUses: [], uuid })) }))
+  await startSession($)
+  // As Claude Code 2.1.332 drew a session scrolled back to such a prompt: the reply under it first.
+  await reply($, 'a-1', { first: 0, last: 9, of: 10 })
+  await reply($, 'a-2', { first: 0, last: 1, of: 2 })
+  const message = await sent($, 'look at [Image #1]', { first: 0, last: 1, of: 2 }, 'q-1')
+  const last = await reply($, 'a-3', { first: 0, last: 11, of: 12 })
+  await w.clock.advance(1000)
+
+  await point(message, 'sent:1')
+  if (isRead) {
+    // Above the prompt the first reply's 10 rows and its own empty top row; under it 2 + 12.
+    expect(keyed(await last.drawn(), 'float-1')).toBeDefined()
+    expect(await message.find({ key: 'float-1' })).toBeUndefined()
+  } else {
+    // Claude Code 2.1.325 refuses the read: the rows stand in the order drawn, 13 rows above.
+    expect(keyed(await message.drawn(), 'float-1')).toBeDefined()
   }
 })
 
