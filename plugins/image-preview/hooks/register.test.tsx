@@ -347,6 +347,23 @@ test('over a transcript that fills the rows, a chip opens its card above the pro
   expect(await ui.find({ key: 'image-1' })).toBeUndefined()
 })
 
+test('where a card floats goes to the debug log once, with the rows it was measured on', async ($, on) => {
+  const w = world(on, { files: { '1.png': 2048 } })
+  await running($, w.clock)
+  await reply($, 'a-0', { first: 0, last: 14, of: 15 })
+  const message = await sent($, 'look at [Image #1]', { first: 0, last: 2, of: 3 })
+  await reply($, 'a-1', { first: 0, last: 3, of: 4 })
+  await w.clock.settle()
+
+  await point(message, 'sent:1')
+  await message.drawn()
+  await w.clock.settle()
+  expect(w.logs.filter(line => line.text.startsWith('card '))).toEqual([{
+    text: expect.stringMatching(/^card 1 on m-1 UserMessage 0-2\/3 at its first row, bottom 2: room 16 rows, card \d+ rows \(picture \d+x\d+\); screen \d+ rows, on it: a-0 AssistantMessage 0-14\/15, m-1 UserMessage 0-2\/3, a-1 AssistantMessage 0-3\/4$/),
+    to: 'debug'
+  }])
+})
+
 test('a sent prompt\'s chip opens its card just above the prompt, never over its own row', async ($, on) => {
   const w = world(on, { files: { '1.png': 2048 } })
   await running($, w.clock)

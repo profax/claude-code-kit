@@ -182,16 +182,28 @@ export class Ledger {
    * has more room, and under the list when the prompt itself is off screen; nowhere when it fits
    * neither. Only known rows count, so the count is never too high.
    */
-  placeOf (id: number, target: string, prompt?: string): Shown | null {
-    if (prompt === undefined) return { id, target, host: null, rows: 0, edge: 'last' }
+  /** The rows on screen top down, by `order`, and which of their rows show. */
+  #showing () {
     const order = this.order()
     const showing = [...this.rows]
       .filter(([requestId, row]) => !!row.onScreen && !this.isReplaced(requestId, row))
-      .map(([id, row]) => [id, { order: order.get(id)!, onScreen: row.onScreen! }] as const)
+      .map(([id, row]) => [id, { component: row.component, order: order.get(id)!, onScreen: row.onScreen! }] as const)
     // A row first drawn late (scrolled into view) stands where the screen's edge cuts it.
     const placeOn = ({ order, onScreen }: { order: number; onScreen: OnScreen }) =>
       onScreen.first > 0 ? -Infinity : onScreen.last < onScreen.of - 1 ? Infinity : order
-    showing.sort((a, b) => placeOn(a[1]) - placeOn(b[1]) || a[1].order - b[1].order)
+    return showing.sort((a, b) => placeOn(a[1]) - placeOn(b[1]) || a[1].order - b[1].order)
+  }
+
+  /** The screen's height and its rows top down, for the debug log: `<id> <component> <first>-<last>/<of>`. */
+  describe () {
+    const rows = this.#showing().map(([id, { component, onScreen }]) => `${id.slice(0, 13)} ${component} ${onScreen.first}-${onScreen.last}/${onScreen.of}`)
+    return `screen ${this.screenRows} rows, on it: ${rows.join(', ')}`
+  }
+
+  placeOf (id: number, target: string, prompt?: string): Shown | null {
+    if (prompt === undefined) return { id, target, host: null, rows: 0, edge: 'last' }
+    const order = this.order()
+    const showing = this.#showing()
     const room = this.screenRows - BOTTOM_ROWS
     const lowest = showing.at(-1)
     const count = (list: typeof showing) => list.reduce((sum, [, row]) => sum + row.onScreen.last - row.onScreen.first + 1, 0)

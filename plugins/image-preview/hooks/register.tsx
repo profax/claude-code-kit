@@ -117,6 +117,18 @@ async function followSession ($: Engine) {
 
 const join = (...parts: string[]) => parts.join(sep)
 
+let lastPlace = ''
+
+/**
+ * Puts where a card floats, and the rows it was measured on, in the debug log once each time it
+ * changes: a card off its place shows there by its numbers (`--debug-file`).
+ */
+function logPlace ($: Engine, text: string) {
+  if (text === lastPlace) return
+  lastPlace = text
+  $.ui.log(text, { to: 'debug' })
+}
+
 let reading: Promise<void> | undefined
 let canRead = true
 type RangedRead = { messages: (args: { last: number } | { after: string }) => Promise<readonly Placed[] | { deny: string }> }
@@ -345,6 +357,9 @@ function closeWindow () {
   popup = undefined
 }
 
+const pictureIn = (picture: { width: number; height: number }, bounds: Bounds) =>
+  fit(picture.width, picture.height, bounds.columns - CARD_COLUMNS, bounds.rows - CARD_ROWS)
+
 /**
  * The picture in a frame with its caption, as large as the bounds allow. The card lies over the
  * transcript, which shows through every cell left unwritten: so each line is written at full
@@ -357,7 +372,7 @@ function card ({ Box, Image, Raster, Text }: Ui, all: Record<string, Picture>, i
   if (!picture || (!('error' in picture) && !thumbs.has(id))) return line(`${label} loading…`, bounds.columns)
   if ('error' in picture) return line(`${label} no preview: ${picture.error}`, bounds.columns)
 
-  const { columns, rows } = fit(picture.width, picture.height, bounds.columns - CARD_COLUMNS, bounds.rows - CARD_ROWS)
+  const { columns, rows } = pictureIn(picture, bounds)
   const view = views.get(id)
   const source = !picture.png ? undefined : graphics === 'file' ? { file: picture.png, format: 'png' as const } : view && { png: view }
   const key = `${id}:${columns}x${rows}`
@@ -472,6 +487,9 @@ async function float ($: Engine, e: Row, drawn: RenderElement, overlays: RenderE
     await reread($, now.id)
     const bounds = { columns: Math.max(8, Math.min(MAX_COLUMNS, (e.viewport?.columns ?? 80) - 4)), rows: Math.min(MAX_ROWS, now.rows) }
     const bottom = now.edge === 'last' ? onScreen.of - 1 - onScreen.last : onScreen.of - 1
+    const picture = (await read($, pictures))[now.id]
+    const size = picture && !('error' in picture) ? pictureIn(picture, bounds) : undefined
+    logPlace($, `card ${now.id} on ${e.requestId.slice(0, 13)} ${e.component} ${onScreen.first}-${onScreen.last}/${onScreen.of} at its ${now.edge} row, bottom ${bottom}: room ${now.rows} rows, card ${size ? `${size.rows + CARD_ROWS} rows (picture ${size.columns}x${size.rows})` : '1 row'}; ${ledger.describe()}`)
     floating = (
       <Box key={`float-${now.id}`} position="absolute" bottom={bottom} left={0}>
         {card(ui, await read($, pictures), now.id, bounds)}
