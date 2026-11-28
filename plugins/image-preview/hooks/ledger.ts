@@ -36,6 +36,12 @@ const messageOf = (requestId: string) => {
  */
 export type Placed = { uuid?: string; toolUses: readonly { tool_use_id: string }[] }
 
+/**
+ * A prompt queued while a turn ran, as the session's file stores it: no message, an attachment
+ * after the messages `after` names, newest first.
+ */
+export type Queued = { uuid: string; after: readonly string[] }
+
 const MIN_CARD_ROWS = 6
 
 export class Ledger {
@@ -52,11 +58,14 @@ export class Ledger {
   #places = new Map<string, number>()
   #read = 0
   #lastRead: string | undefined
+  /** The messages stored before each queued prompt, by `messageOf`, newest first. */
+  #queued = new Map<string, readonly string[]>()
   #order: Map<string, number> | undefined
 
   /** Forgets every row: another session's transcript is drawn. */
   clear () {
     this.rows.clear()
+    this.#queued.clear()
     this.forget()
     this.moves++
   }
@@ -123,6 +132,30 @@ export class Ledger {
     this.#order = undefined
   }
 
+  /** Learns where the prompts queued while a turn ran were stored. */
+  learnQueued (queued: readonly Queued[]) {
+    for (const { uuid, after } of queued) this.#queued.set(messageOf(uuid), after.map(messageOf))
+    this.#order = undefined
+  }
+
+  /** Whether a prompt row was drawn that neither a message nor a queued prompt learnt places. */
+  hasLoosePrompt () {
+    for (const [id, row] of this.rows) {
+      const key = messageOf(id)
+      if (row.component === 'UserMessage' && !this.#places.has(key) && !this.#queued.has(key)) return true
+    }
+    return false
+  }
+
+  /** Just after the newest message stored before queued prompt `key` that a read placed. */
+  #queuedPlace (key: string) {
+    for (const message of this.#queued.get(key) ?? []) {
+      const at = this.#places.get(message)
+      if (at !== undefined) return at + 0.5
+    }
+    return undefined
+  }
+
   /** Forgets the messages learnt: the transcript was cut (compacted) or another one is drawn. */
   forget () {
     this.#places.clear()
@@ -132,18 +165,18 @@ export class Ledger {
   }
 
   /**
-   * The rows in the transcript's order, by the messages learnt. The engine draws a session it opens,
-   * or a reload, a block at a time, the newest first, each block in order, and more blocks as the
-   * transcript scrolls back: so a row no message places (a turn's duration, a prompt queued while a
-   * turn ran, any row before the messages are read) comes right after the row drawn before it. One
-   * that opens a block stands at the end of the block drawn before.
+   * The rows in the transcript's order, by the messages and queued prompts learnt. The engine draws
+   * a session it opens, or a reload, a block at a time, the newest first, each block in order, and
+   * more blocks as the transcript scrolls back: so a row nothing learnt places (a turn's duration,
+   * any row before the messages are read) comes right after the row drawn before it. One that opens
+   * a block stands at the end of the block drawn before.
    */
   order () {
     if (this.#order) return this.#order
     let place = -1
     // The rows come in the order first drawn.
     const placed = [...this.rows].map(([id, row]) => {
-      place = this.#places.get(messageOf(id)) ?? place
+      place = this.#places.get(messageOf(id)) ?? this.#queuedPlace(messageOf(id)) ?? place
       return { id, place, seen: row.seen }
     })
     placed.sort((a, b) => a.place - b.place || a.seen - b.seen)

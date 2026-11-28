@@ -12,7 +12,7 @@ import { forgetSystem, show, systemOf } from './system'
 import type { System } from './system'
 import { Ledger, TRANSCRIPT } from './ledger'
 import { forgetReaders, saidBy, write } from './readers'
-import type { Placed, Row } from './ledger'
+import type { Placed, Queued, Row } from './ledger'
 import { idsIn, PROMPT_AT, tokensOn } from './tokens'
 import { windowCommand } from './window'
 import type { Pixels } from './pixels'
@@ -105,6 +105,7 @@ async function followSession ($: Engine) {
   if (id === sessionId) return
   if (sessionId !== undefined) ledger.clear()
   sessionId = id
+  transcript = undefined
   folder = undefined
   madeFolder = undefined
   thumbs.clear()
@@ -133,9 +134,78 @@ let reading: Promise<void> | undefined
 let canRead = true
 type RangedRead = { messages: (args: { last: number } | { after: string }) => Promise<readonly Placed[] | { deny: string }> }
 
+// How much of the session's file one read takes; a read may return at most 4 MiB.
+const TRANSCRIPT_CHUNK = 1024 * 1024
+// How many of the messages stored before a queued prompt are kept: a message the engine's read
+// leaves out (some tool results) is skipped for the one before it.
+const KEPT_BEFORE = 16
+type FileRange = { read: (path: string, range: { offset: number; length: number }) => Promise<string> }
+
+/** The session's file as read so far: up to `offset`, `rest` an unfinished line, the newest messages first. */
+let transcript: { path: string; offset: number; rest: string; recent: string[] } | null | undefined
+
 /**
- * Tells the ledger where the messages stand, while a row was drawn that none read so far places.
- * Claude Code 2.1.325 refuses a ranged read: rows then stand in the order drawn.
+ * The session's file, `<config>/projects/<project>/<id>.jsonl`; null where it is not found. The
+ * engine shortens a long project path with a hash: the file is then looked for.
+ */
+async function transcriptPath ($: Engine) {
+  const id = await $.session.id()
+  const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || ''
+  const projects = join((await $.env.get('CLAUDE_CONFIG_DIR')) || join(home, '.claude'), 'projects')
+  const names = new Set([await $.session.root(), await $.session.cwd()].map(path => path.replace(/[^a-zA-Z0-9]/g, '-')))
+  for (const name of names) {
+    if (await $.fs.exists(join(projects, name, `${id}.jsonl`))) return join(projects, name, `${id}.jsonl`)
+  }
+  for (const entry of await $.fs.list(projects).catch(() => [])) {
+    if (entry.kind === 'dir' && (await $.fs.exists(join(projects, entry.name, `${id}.jsonl`)))) return join(projects, entry.name, `${id}.jsonl`)
+  }
+  return null
+}
+
+/**
+ * Tells the ledger where the prompts queued while a turn ran stand: the engine's read of the
+ * messages leaves them out, the session's file has them as attachments. Reads what the file grew
+ * by since the last time.
+ */
+async function readQueued ($: Engine) {
+  if (transcript === undefined) {
+    const path = await transcriptPath($)
+    transcript = path === null ? null : { path, offset: 0, rest: '', recent: [] }
+  }
+  if (transcript === null) return
+  const file = transcript
+  const { size } = await $.fs.stat(file.path)
+  if (size < file.offset) Object.assign(file, { offset: 0, rest: '', recent: [] })
+  const queued: Queued[] = []
+  while (file.offset < size) {
+    const length = Math.min(TRANSCRIPT_CHUNK, size - file.offset)
+    const text = await ($.fs as unknown as FileRange).read(file.path, { offset: file.offset, length })
+    file.offset += length
+    const lines = (file.rest + text).split('\n')
+    file.rest = lines.pop()!
+    for (const line of lines) {
+      let entry: { type?: unknown; uuid?: unknown; isSidechain?: unknown; attachment?: { type?: unknown } }
+      try {
+        entry = JSON.parse(line)
+      } catch {
+        continue
+      }
+      if (entry.isSidechain === true || typeof entry.uuid !== 'string') continue
+      if (entry.type === 'user' || entry.type === 'assistant') {
+        file.recent.unshift(entry.uuid)
+        file.recent.length = Math.min(file.recent.length, KEPT_BEFORE)
+      } else if (entry.type === 'attachment' && entry.attachment?.type === 'queued_command') {
+        queued.push({ uuid: entry.uuid, after: [...file.recent] })
+      }
+    }
+  }
+  ledger.learnQueued(queued)
+}
+
+/**
+ * Tells the ledger where the messages stand, while a row was drawn that none read so far places,
+ * and the queued prompts, while a prompt row was drawn that nothing learnt places. Claude Code
+ * 2.1.325 refuses a ranged read: rows then stand in the order drawn.
  */
 function readMessages ($: Engine) {
   if (reading || !canRead || !ledger.isBehind) return
@@ -151,6 +221,12 @@ function readMessages ($: Engine) {
         ledger.forget()
         ledger.isBehind = true
       }
+    }
+    if (ledger.hasLoosePrompt() && transcript !== null) {
+      await readQueued($).catch((error: unknown) => {
+        transcript = null
+        logOnce($, `reading the session's file for queued prompts failed: ${error instanceof Error ? error.message : String(error)}`)
+      })
     }
   })().catch((error: unknown) => {
     canRead = false
